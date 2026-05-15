@@ -175,11 +175,86 @@ def compute_stats(save_data):
     return s
 
 
+THEMES = {
+    "coast": {
+        "grass":   (110, 160, 90),
+        "road":    (75, 75, 85),
+        "edge":    (230, 225, 200),
+        "decor":   ["palm", "bush"],
+        "decor_density": 0.35,
+        "obstacles": [("pothole", 3), ("branch", 2), ("cyclist", 1)],
+        "curve_mult": 0.5,
+    },
+    "classic": {
+        "grass":   (60, 110, 60),
+        "road":    (72, 72, 82),
+        "edge":    (220, 220, 220),
+        "decor":   ["oak", "pine", "bush"],
+        "decor_density": 0.7,
+        "obstacles": [("pothole", 3), ("branch", 3), ("cyclist", 1)],
+        "curve_mult": 0.85,
+    },
+    "cobbles": {
+        "grass":   (95, 120, 75),
+        "road":    (130, 115, 95),
+        "edge":    (190, 175, 150),
+        "decor":   ["oak", "bush"],
+        "decor_density": 0.55,
+        "obstacles": [("pothole", 4), ("branch", 2), ("cyclist", 2)],
+        "curve_mult": 0.75,
+    },
+    "gravel": {
+        "grass":   (135, 145, 80),
+        "road":    (180, 160, 110),
+        "edge":    (210, 190, 140),
+        "decor":   ["cypress", "bush"],
+        "decor_density": 0.6,
+        "obstacles": [("pothole", 3), ("rock", 2), ("branch", 2), ("cyclist", 1)],
+        "curve_mult": 0.95,
+    },
+    "mountain": {
+        "grass":   (95, 100, 85),
+        "road":    (65, 65, 75),
+        "edge":    (180, 180, 190),
+        "decor":   ["pine", "rock_big", "rock_small"],
+        "decor_density": 1.0,
+        "obstacles": [("pothole", 2), ("rock", 3), ("cyclist", 1), ("branch", 1)],
+        "curve_mult": 1.4,
+    },
+    "alpine": {
+        "grass":   (225, 230, 235),
+        "road":    (80, 80, 90),
+        "edge":    (240, 240, 245),
+        "decor":   ["pine_snow", "rock_big"],
+        "decor_density": 0.85,
+        "obstacles": [("pothole", 2), ("rock", 3), ("cyclist", 1)],
+        "curve_mult": 1.55,
+    },
+    "autumn": {
+        "grass":   (130, 105, 60),
+        "road":    (75, 70, 75),
+        "edge":    (215, 210, 200),
+        "decor":   ["oak_autumn", "bush_autumn", "pine"],
+        "decor_density": 0.8,
+        "obstacles": [("pothole", 2), ("branch", 4), ("cyclist", 1)],
+        "curve_mult": 0.95,
+    },
+}
+
+_curve_amp_mult = 1.0
+
+
+def set_curve_amp_mult(m):
+    global _curve_amp_mult
+    _curve_amp_mult = m
+
+
 def road_curve(distance):
     """World x offset (pixels) of road centerline at given world distance (meters)."""
-    return (math.sin(distance * 0.032) * 130
-            + math.sin(distance * 0.010) * 70
-            + math.sin(distance * 0.080) * 34)
+    m = _curve_amp_mult
+    return (math.sin(distance * 0.032) * 130 * m
+            + math.sin(distance * 0.010) * 70 * m
+            + math.sin(distance * 0.080) * 34 * m)
 
 
 def make_cyclist_sprite(jersey, helmet, secondary=None, w=PLAYER_W, h=PLAYER_H):
@@ -213,6 +288,115 @@ def make_branch_sprite(w=34, h=10):
     pygame.draw.rect(s, BROWN, (w - 6, 1, 4, 3))
     pygame.draw.rect(s, BROWN, (4, h - 4, 4, 3))
     return s
+
+
+def make_pine_sprite(snow=False):
+    s = pygame.Surface((22, 40), pygame.SRCALPHA)
+    pygame.draw.rect(s, BROWN_DARK, (10, 32, 3, 8))
+    green = (40, 100, 50)
+    light = (70, 130, 65)
+    tiers = [(2, 7), (10, 10), (18, 14)]
+    for ty, w in tiers:
+        pygame.draw.polygon(s, green, [(11, ty), (11 - w, ty + 10), (11 + w, ty + 10)])
+        pygame.draw.polygon(s, light, [(11, ty + 1), (11 - w + 3, ty + 9), (11 + w - 3, ty + 9)])
+    if snow:
+        white = (240, 245, 250)
+        for ty, w in tiers:
+            pygame.draw.polygon(s, white, [(11, ty), (11 - w // 2, ty + 4), (11 + w // 2, ty + 4)])
+    return s
+
+
+def make_oak_sprite(autumn=False):
+    s = pygame.Surface((26, 36), pygame.SRCALPHA)
+    pygame.draw.rect(s, BROWN_DARK, (12, 24, 3, 12))
+    if autumn:
+        c1, c2 = (200, 100, 40), (240, 170, 70)
+    else:
+        c1, c2 = (45, 100, 55), (80, 150, 75)
+    pygame.draw.ellipse(s, c1, (1, 2, 24, 26))
+    pygame.draw.ellipse(s, c2, (4, 4, 16, 18))
+    return s
+
+
+def make_palm_sprite():
+    s = pygame.Surface((26, 40), pygame.SRCALPHA)
+    pygame.draw.rect(s, BROWN, (12, 10, 3, 30))
+    pygame.draw.rect(s, BROWN_DARK, (12, 14, 3, 2))
+    pygame.draw.rect(s, BROWN_DARK, (12, 22, 3, 2))
+    green = (50, 130, 60)
+    for ang in (200, 240, 290, 340, 30, 80):
+        a = math.radians(ang)
+        ex = 13 + int(math.cos(a) * 12)
+        ey = 11 + int(math.sin(a) * 7)
+        pygame.draw.line(s, green, (13, 11), (ex, ey), 3)
+    return s
+
+
+def make_cypress_sprite():
+    s = pygame.Surface((14, 44), pygame.SRCALPHA)
+    pygame.draw.rect(s, BROWN_DARK, (6, 38, 3, 6))
+    pygame.draw.ellipse(s, (40, 90, 50), (3, 0, 9, 40))
+    pygame.draw.ellipse(s, (65, 115, 65), (4, 4, 6, 34))
+    return s
+
+
+def make_bush_sprite(autumn=False):
+    s = pygame.Surface((20, 14), pygame.SRCALPHA)
+    if autumn:
+        c1, c2 = (180, 90, 40), (220, 140, 60)
+    else:
+        c1, c2 = (50, 110, 55), (80, 150, 75)
+    pygame.draw.ellipse(s, c1, (0, 2, 20, 12))
+    pygame.draw.ellipse(s, c2, (3, 4, 14, 8))
+    return s
+
+
+def make_rock_decor_sprite(big=False):
+    if big:
+        s = pygame.Surface((30, 22), pygame.SRCALPHA)
+        pygame.draw.polygon(s, (110, 110, 115), [(2, 20), (8, 6), (22, 4), (28, 18), (24, 21)])
+        pygame.draw.polygon(s, (140, 140, 145), [(10, 8), (16, 5), (22, 9), (18, 14)])
+    else:
+        s = pygame.Surface((20, 14), pygame.SRCALPHA)
+        pygame.draw.polygon(s, (115, 115, 120), [(2, 12), (6, 4), (16, 5), (18, 12)])
+        pygame.draw.polygon(s, (145, 145, 150), [(8, 6), (12, 4), (14, 8)])
+    return s
+
+
+def make_rock_obstacle_sprite():
+    s = pygame.Surface((30, 22), pygame.SRCALPHA)
+    pygame.draw.polygon(s, (95, 95, 100), [(2, 20), (6, 6), (22, 3), (28, 18), (24, 21)])
+    pygame.draw.polygon(s, (130, 130, 135), [(8, 8), (16, 4), (22, 10), (18, 16)])
+    pygame.draw.polygon(s, (160, 160, 165), [(12, 8), (16, 5), (18, 10)])
+    return s
+
+
+def make_fallen_cyclist_sprite():
+    s = pygame.Surface((42, 28), pygame.SRCALPHA)
+    pygame.draw.circle(s, BLACK, (9, 22), 6, 2)
+    pygame.draw.circle(s, BLACK, (33, 22), 6, 2)
+    pygame.draw.line(s, (90, 90, 100), (9, 22), (33, 22), 2)
+    pygame.draw.line(s, (90, 90, 100), (16, 22), (24, 14), 2)
+    pygame.draw.rect(s, (200, 80, 80), (13, 10, 16, 6), border_radius=2)
+    pygame.draw.rect(s, (60, 60, 70), (28, 12, 6, 3))
+    pygame.draw.circle(s, (40, 90, 200), (32, 11), 4)
+    pygame.draw.line(s, BLACK, (13, 13), (8, 18), 2)
+    return s
+
+
+def make_decor_sprites():
+    return {
+        "pine":       make_pine_sprite(),
+        "pine_snow":  make_pine_sprite(snow=True),
+        "oak":        make_oak_sprite(),
+        "oak_autumn": make_oak_sprite(autumn=True),
+        "palm":       make_palm_sprite(),
+        "cypress":    make_cypress_sprite(),
+        "bush":       make_bush_sprite(),
+        "bush_autumn": make_bush_sprite(autumn=True),
+        "rock_big":   make_rock_decor_sprite(big=True),
+        "rock_small": make_rock_decor_sprite(big=False),
+    }
 
 
 def make_goodie_sprite(kind):
@@ -376,19 +560,46 @@ class Goodie:
         self.collected = False
 
 
+class Decor:
+    def __init__(self, distance, world_x, kind):
+        self.distance = distance
+        self.world_x = world_x
+        self.kind = kind
+
+
 def player_position(player, opponents):
     ahead = sum(1 for o in opponents if o.distance > player.distance)
     return ahead + 1
 
 
-def spawn_obstacles_ahead(player, obstacles, density, next_distance):
+def spawn_obstacles_ahead(player, obstacles, density, next_distance, theme_data):
     horizon = player.distance + 240
+    kinds = [k for k, _ in theme_data["obstacles"]]
+    weights = [w for _, w in theme_data["obstacles"]]
     while next_distance < horizon:
         rc = road_curve(next_distance)
         x = rc + random.uniform(-ROAD_WIDTH // 2 + 18, ROAD_WIDTH // 2 - 18)
-        kind = random.choice(["pothole", "branch", "branch", "pothole"])
+        kind = random.choices(kinds, weights=weights)[0]
         obstacles.append(Obstacle(next_distance, x, kind))
         gap = random.uniform(14, 32) / max(density, 0.15)
+        next_distance += gap
+    return next_distance
+
+
+def spawn_decor_ahead(player, decor, theme_data, next_distance):
+    horizon = player.distance + 240
+    kinds = theme_data["decor"]
+    if not kinds:
+        return horizon + 100
+    density = theme_data["decor_density"]
+    while next_distance < horizon:
+        rc = road_curve(next_distance)
+        side = random.choice([-1, 1])
+        offset = ROAD_WIDTH // 2 + random.randint(30, 180)
+        x = rc + side * offset
+        kind = random.choice(kinds)
+        decor.append(Decor(next_distance, x, kind))
+        gap = random.uniform(12, 40) / max(density, 0.15)
         next_distance += gap
     return next_distance
 
@@ -405,6 +616,9 @@ def spawn_goodies_ahead(player, goodies, next_distance):
     return next_distance
 
 
+OBSTACLE_REACH = {"pothole": 16, "branch": 18, "rock": 19, "cyclist": 22}
+
+
 def check_collisions(player, obstacles):
     half_w = PLAYER_W // 2
     for o in obstacles:
@@ -412,7 +626,7 @@ def check_collisions(player, obstacles):
             continue
         dd = o.distance - player.distance
         if -0.4 < dd < 0.9:
-            reach = 16 if o.kind == "pothole" else 18
+            reach = OBSTACLE_REACH.get(o.kind, 18)
             if abs(o.world_x - player.world_x) < half_w + reach - 6:
                 o.hit = True
                 if o.kind == "pothole":
@@ -420,11 +634,21 @@ def check_collisions(player, obstacles):
                     player.speed *= 0.55
                     player.crashed_timer = 0.5
                     player.energy = max(0, player.energy - 3)
-                else:
+                elif o.kind == "branch":
                     player.target_speed *= 0.75
                     player.speed *= 0.8
                     player.energy = max(0, player.energy - 8)
                     player.crashed_timer = 0.3
+                elif o.kind == "rock":
+                    player.target_speed *= 0.35
+                    player.speed *= 0.5
+                    player.crashed_timer = 0.55
+                    player.energy = max(0, player.energy - 6)
+                elif o.kind == "cyclist":
+                    player.target_speed *= 0.5
+                    player.speed *= 0.6
+                    player.crashed_timer = 0.45
+                    player.energy = max(0, player.energy - 5)
                 player.flash_timer = 0.25
 
 
@@ -443,8 +667,8 @@ def check_goodies(player, goodies):
     return picked
 
 
-def draw_road(screen, player):
-    screen.fill(GRASS)
+def draw_road(screen, player, theme_data):
+    screen.fill(theme_data["grass"])
     step = 6
     left_pts = []
     right_pts = []
@@ -455,10 +679,10 @@ def draw_road(screen, player):
         left_pts.append((cx - ROAD_WIDTH // 2, y))
         right_pts.append((cx + ROAD_WIDTH // 2, y))
     poly = left_pts + list(reversed(right_pts))
-    pygame.draw.polygon(screen, ROAD, poly)
+    pygame.draw.polygon(screen, theme_data["road"], poly)
     if len(left_pts) >= 2:
-        pygame.draw.lines(screen, ROAD_EDGE, False, left_pts, 3)
-        pygame.draw.lines(screen, ROAD_EDGE, False, right_pts, 3)
+        pygame.draw.lines(screen, theme_data["edge"], False, left_pts, 3)
+        pygame.draw.lines(screen, theme_data["edge"], False, right_pts, 3)
 
     spacing_m = 3.0
     dash_len_m = 1.4
@@ -805,6 +1029,9 @@ def run_shop(screen, save_data, fonts):
 
 def run_race(screen, route, save_data, fonts):
     clock = pygame.time.Clock()
+    theme_data = THEMES.get(route.get("theme", "classic"), THEMES["classic"])
+    set_curve_amp_mult(theme_data["curve_mult"])
+
     player = Player(save_data)
     opp_count = max(10, route.get("opponents", 10))
     base = 38 - route["difficulty"] * 1.0
@@ -812,8 +1039,10 @@ def run_race(screen, route, save_data, fonts):
                  for _ in range(opp_count)]
     obstacles = []
     goodies = []
+    decor = []
     next_obs_d = 50.0
     next_goodie_d = 60.0
+    next_decor_d = 30.0
     spawn_density = route["obstacle_density"]
     distance_target = route["distance_m"]
 
@@ -822,9 +1051,14 @@ def run_race(screen, route, save_data, fonts):
         player.stats["helmet_color"],
         player.stats["jersey_secondary"],
     )
-    pothole_spr = make_pothole_sprite()
-    branch_spr = make_branch_sprite()
+    obstacle_sprites = {
+        "pothole": make_pothole_sprite(),
+        "branch":  make_branch_sprite(),
+        "rock":    make_rock_obstacle_sprite(),
+        "cyclist": make_fallen_cyclist_sprite(),
+    }
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
+    decor_sprites = make_decor_sprites()
 
     elapsed = 0.0
     wind_phase = 0.0
@@ -862,8 +1096,9 @@ def run_race(screen, route, save_data, fonts):
             player.update(dt, keys, route, wind_phase)
             for o in opponents:
                 o.update(dt)
-            next_obs_d = spawn_obstacles_ahead(player, obstacles, spawn_density, next_obs_d)
+            next_obs_d = spawn_obstacles_ahead(player, obstacles, spawn_density, next_obs_d, theme_data)
             next_goodie_d = spawn_goodies_ahead(player, goodies, next_goodie_d)
+            next_decor_d = spawn_decor_ahead(player, decor, theme_data, next_decor_d)
             check_collisions(player, obstacles)
             picked = check_goodies(player, goodies)
             if picked:
@@ -872,6 +1107,7 @@ def run_race(screen, route, save_data, fonts):
             obstacles[:] = [o for o in obstacles if o.distance > player.distance - 8]
             goodies[:] = [g for g in goodies
                           if not g.collected and g.distance > player.distance - 8]
+            decor[:] = [d for d in decor if d.distance > player.distance - 8]
             if player.distance >= distance_target:
                 state = "finished"
                 final_position = player_position(player, opponents)
@@ -893,12 +1129,13 @@ def run_race(screen, route, save_data, fonts):
 
         recent_pickup_t = max(0.0, recent_pickup_t - dt)
 
-        draw_road(screen, player)
+        draw_road(screen, player, theme_data)
+        for d in sorted(decor, key=lambda x: x.distance, reverse=True):
+            draw_world_obj(screen, d.distance, d.world_x, decor_sprites[d.kind], player)
         for o in sorted(opponents, key=lambda x: x.distance):
             draw_world_obj(screen, o.distance, o.world_x, o.sprite, player)
         for o in obstacles:
-            draw_world_obj(screen, o.distance, o.world_x,
-                           pothole_spr if o.kind == "pothole" else branch_spr, player)
+            draw_world_obj(screen, o.distance, o.world_x, obstacle_sprites[o.kind], player)
         for g in goodies:
             if not g.collected:
                 bob = math.sin(pygame.time.get_ticks() / 200 + g.distance) * 2
