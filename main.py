@@ -1,3 +1,4 @@
+import asyncio
 import json
 import math
 import random
@@ -7,6 +8,8 @@ from pathlib import Path
 import pygame
 
 from routes import ROUTES
+
+IS_WEB = sys.platform == "emscripten"
 
 W, H = 900, 640
 FPS = 60
@@ -41,7 +44,7 @@ BROWN_DARK = (75, 50, 25)
 PINK = (235, 120, 180)
 CYAN = (80, 220, 220)
 
-SAVE_FILE = Path(__file__).parent / "save.json"
+SAVE_FILE = Path("/tmp/radgame_save.json") if IS_WEB else Path(__file__).parent / "save.json"
 
 SHOP_ITEMS = [
     {"id": "jersey_red",    "type": "jersey", "name": "Klassik Rot",       "color": (220, 50, 50),   "cost": 0,   "default": True},
@@ -182,7 +185,7 @@ THEMES = {
         "edge":    (230, 225, 200),
         "decor":   ["palm", "bush"],
         "decor_density": 0.35,
-        "obstacles": [("pothole", 3), ("branch", 2), ("cyclist", 1)],
+        "obstacles": [("pothole", 3), ("branch", 2)],
         "curve_mult": 0.5,
     },
     "classic": {
@@ -191,7 +194,7 @@ THEMES = {
         "edge":    (220, 220, 220),
         "decor":   ["oak", "pine", "bush"],
         "decor_density": 0.7,
-        "obstacles": [("pothole", 3), ("branch", 3), ("cyclist", 1)],
+        "obstacles": [("pothole", 3), ("branch", 3)],
         "curve_mult": 0.85,
     },
     "cobbles": {
@@ -200,7 +203,7 @@ THEMES = {
         "edge":    (190, 175, 150),
         "decor":   ["oak", "bush"],
         "decor_density": 0.55,
-        "obstacles": [("pothole", 4), ("branch", 2), ("cyclist", 2)],
+        "obstacles": [("pothole", 4), ("branch", 2)],
         "curve_mult": 0.75,
     },
     "gravel": {
@@ -209,7 +212,7 @@ THEMES = {
         "edge":    (210, 190, 140),
         "decor":   ["cypress", "bush"],
         "decor_density": 0.6,
-        "obstacles": [("pothole", 3), ("rock", 2), ("branch", 2), ("cyclist", 1)],
+        "obstacles": [("pothole", 3), ("rock", 2), ("branch", 2)],
         "curve_mult": 0.95,
     },
     "mountain": {
@@ -218,7 +221,7 @@ THEMES = {
         "edge":    (180, 180, 190),
         "decor":   ["pine", "rock_big", "rock_small"],
         "decor_density": 1.0,
-        "obstacles": [("pothole", 2), ("rock", 3), ("cyclist", 1), ("branch", 1)],
+        "obstacles": [("pothole", 2), ("rock", 3), ("branch", 1)],
         "curve_mult": 1.4,
     },
     "alpine": {
@@ -227,7 +230,7 @@ THEMES = {
         "edge":    (240, 240, 245),
         "decor":   ["pine_snow", "rock_big"],
         "decor_density": 0.85,
-        "obstacles": [("pothole", 2), ("rock", 3), ("cyclist", 1)],
+        "obstacles": [("pothole", 2), ("rock", 3)],
         "curve_mult": 1.55,
     },
     "autumn": {
@@ -236,7 +239,7 @@ THEMES = {
         "edge":    (215, 210, 200),
         "decor":   ["oak_autumn", "bush_autumn", "pine"],
         "decor_density": 0.8,
-        "obstacles": [("pothole", 2), ("branch", 4), ("cyclist", 1)],
+        "obstacles": [("pothole", 2), ("branch", 4)],
         "curve_mult": 0.95,
     },
 }
@@ -260,17 +263,47 @@ def road_curve(distance):
 def make_cyclist_sprite(jersey, helmet, secondary=None, w=PLAYER_W, h=PLAYER_H):
     s = pygame.Surface((w, h), pygame.SRCALPHA)
     cx = w // 2
-    pygame.draw.rect(s, BLACK, (cx - 1, 0, 3, 7))
-    pygame.draw.rect(s, (60, 60, 70), (cx - 7, 7, 14, 2))
-    pygame.draw.rect(s, jersey, (cx - 5, 9, 10, 3))
-    pygame.draw.rect(s, jersey, (cx - 8, 12, 16, 4))
-    pygame.draw.ellipse(s, helmet, (cx - 5, 16, 10, 8))
-    pygame.draw.rect(s, jersey, (cx - 7, 22, 14, 13))
+    tire = BLACK
+    rim = (170, 170, 175)
+    frame = (50, 50, 60)
+    arm = (220, 195, 165)
+
+    # Vorderrad: schmal, dünner Reifen mit hellem Felgenstreifen
+    pygame.draw.rect(s, tire, (cx - 1, 0, 3, 9))
+    pygame.draw.rect(s, rim, (cx, 1, 1, 7))
+
+    # Lenker: schmaler Drop-Bar, an den Enden leicht abgewinkelt
+    pygame.draw.rect(s, frame, (cx - 7, 7, 15, 2))
+    pygame.draw.rect(s, frame, (cx - 7, 8, 2, 2))
+    pygame.draw.rect(s, frame, (cx + 6, 8, 2, 2))
+
+    # Arme zu den Bremsgriffen
+    pygame.draw.rect(s, arm, (cx - 5, 10, 2, 4))
+    pygame.draw.rect(s, arm, (cx + 4, 10, 2, 4))
+
+    # Oberkörper Trikot — schmal (10 statt 16 breit), klar gegen Tank-Optik
+    pygame.draw.rect(s, jersey, (cx - 4, 13, 9, 11))
+    pygame.draw.rect(s, jersey, (cx - 3, 11, 7, 2))
+
+    # Helm: oval, oben am Kopf, mit Lüftungsschlitz
+    pygame.draw.ellipse(s, helmet, (cx - 4, 13, 9, 7))
+    pygame.draw.rect(s, (25, 25, 30), (cx - 1, 14, 2, 4))
+
+    # Trikot Po-Bereich
+    pygame.draw.rect(s, jersey, (cx - 4, 24, 9, 6))
     if secondary:
-        for py in range(23, 34, 3):
-            pygame.draw.rect(s, secondary, (cx - 6 + (py % 4), py, 3, 2))
-    pygame.draw.rect(s, (35, 35, 42), (cx - 2, 35, 4, 4))
-    pygame.draw.rect(s, BLACK, (cx - 1, 39, 3, 9))
+        for py in (14, 17, 20, 23, 26):
+            pygame.draw.rect(s, secondary, (cx - 3, py, 7, 1))
+
+    # Sattel
+    pygame.draw.rect(s, (30, 30, 38), (cx - 2, 30, 5, 3))
+
+    # Sitzrohr / Sattelstütze
+    pygame.draw.rect(s, frame, (cx, 33, 1, 5))
+
+    # Hinterrad
+    pygame.draw.rect(s, tire, (cx - 1, 38, 3, 10))
+    pygame.draw.rect(s, rim, (cx, 39, 1, 8))
     return s
 
 
@@ -368,19 +401,6 @@ def make_rock_obstacle_sprite():
     pygame.draw.polygon(s, (95, 95, 100), [(2, 20), (6, 6), (22, 3), (28, 18), (24, 21)])
     pygame.draw.polygon(s, (130, 130, 135), [(8, 8), (16, 4), (22, 10), (18, 16)])
     pygame.draw.polygon(s, (160, 160, 165), [(12, 8), (16, 5), (18, 10)])
-    return s
-
-
-def make_fallen_cyclist_sprite():
-    s = pygame.Surface((42, 28), pygame.SRCALPHA)
-    pygame.draw.circle(s, BLACK, (9, 22), 6, 2)
-    pygame.draw.circle(s, BLACK, (33, 22), 6, 2)
-    pygame.draw.line(s, (90, 90, 100), (9, 22), (33, 22), 2)
-    pygame.draw.line(s, (90, 90, 100), (16, 22), (24, 14), 2)
-    pygame.draw.rect(s, (200, 80, 80), (13, 10, 16, 6), border_radius=2)
-    pygame.draw.rect(s, (60, 60, 70), (28, 12, 6, 3))
-    pygame.draw.circle(s, (40, 90, 200), (32, 11), 4)
-    pygame.draw.line(s, BLACK, (13, 13), (8, 18), 2)
     return s
 
 
@@ -616,7 +636,7 @@ def spawn_goodies_ahead(player, goodies, next_distance):
     return next_distance
 
 
-OBSTACLE_REACH = {"pothole": 16, "branch": 18, "rock": 19, "cyclist": 22}
+OBSTACLE_REACH = {"pothole": 16, "branch": 18, "rock": 19}
 
 
 def check_collisions(player, obstacles):
@@ -644,11 +664,6 @@ def check_collisions(player, obstacles):
                     player.speed *= 0.5
                     player.crashed_timer = 0.55
                     player.energy = max(0, player.energy - 6)
-                elif o.kind == "cyclist":
-                    player.target_speed *= 0.5
-                    player.speed *= 0.6
-                    player.crashed_timer = 0.45
-                    player.energy = max(0, player.energy - 5)
                 player.flash_timer = 0.25
 
 
@@ -788,7 +803,7 @@ def draw_hud(screen, player, position, total, distance_remaining, fonts, route, 
             screen.blit(surf, (W // 2 - surf.get_width() // 2, H - h - 36))
 
 
-def run_menu(screen, save_data, fonts):
+async def run_menu(screen, save_data, fonts):
     clock = pygame.time.Clock()
     cursor = 0
     visible = 6
@@ -888,9 +903,10 @@ def run_menu(screen, save_data, fonts):
         screen.blit(hint, (W // 2 - hint.get_width() // 2, H - 26))
 
         pygame.display.flip()
+        await asyncio.sleep(0)
 
 
-def run_shop(screen, save_data, fonts):
+async def run_shop(screen, save_data, fonts):
     clock = pygame.time.Clock()
     items_list = []
     for t in ITEM_TYPES:
@@ -1025,9 +1041,10 @@ def run_shop(screen, save_data, fonts):
         screen.blit(hint, (W // 2 - hint.get_width() // 2, H - 26))
 
         pygame.display.flip()
+        await asyncio.sleep(0)
 
 
-def run_race(screen, route, save_data, fonts):
+async def run_race(screen, route, save_data, fonts):
     clock = pygame.time.Clock()
     theme_data = THEMES.get(route.get("theme", "classic"), THEMES["classic"])
     set_curve_amp_mult(theme_data["curve_mult"])
@@ -1055,7 +1072,6 @@ def run_race(screen, route, save_data, fonts):
         "pothole": make_pothole_sprite(),
         "branch":  make_branch_sprite(),
         "rock":    make_rock_obstacle_sprite(),
-        "cyclist": make_fallen_cyclist_sprite(),
     }
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
@@ -1078,6 +1094,8 @@ def run_race(screen, route, save_data, fonts):
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                if IS_WEB:
+                    return
                 pygame.quit()
                 sys.exit()
             if event.type == pygame.KEYDOWN:
@@ -1172,9 +1190,10 @@ def run_race(screen, route, save_data, fonts):
             screen.blit(hint, (W // 2 - hint.get_width() // 2, 380))
 
         pygame.display.flip()
+        await asyncio.sleep(0)
 
 
-def main():
+async def main():
     pygame.init()
     pygame.display.set_caption("Radgame")
     screen = pygame.display.set_mode((W, H))
@@ -1186,16 +1205,16 @@ def main():
     }
     while True:
         save_data = load_save()
-        choice = run_menu(screen, save_data, fonts)
+        choice = await run_menu(screen, save_data, fonts)
         if choice is None:
             break
         kind, payload = choice
         if kind == "shop":
-            run_shop(screen, save_data, fonts)
+            await run_shop(screen, save_data, fonts)
         elif kind == "race":
-            run_race(screen, payload, save_data, fonts)
+            await run_race(screen, payload, save_data, fonts)
     pygame.quit()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
