@@ -11,10 +11,10 @@ from routes import ROUTES
 
 IS_WEB = sys.platform == "emscripten"
 
-W, H = 900, 640
+W, H = 540, 960
 FPS = 60
-ROAD_WIDTH = 220
-PLAYER_Y = 460
+ROAD_WIDTH = 200
+PLAYER_Y = 500
 PLAYER_W, PLAYER_H = 26, 48
 PX_PER_M = 25
 MIN_SPEED = 8
@@ -220,8 +220,11 @@ THEMES = {
         "grass":   (110, 160, 90),
         "road":    (75, 75, 85),
         "edge":    (230, 225, 200),
-        "decor":   ["palm", "palm", "bush", "bush", "oak", "rock_small"],
-        "decor_density": 0.85,
+        "decor":   ["palm", "palm", "palm", "bush", "bush", "oak", "rock_small"],
+        "decor_density": 1.6,
+        "clutter": ["grass_coast", "grass_coast", "grass_coast", "rock_tiny",
+                    "flower_yellow", "flower_white"],
+        "clutter_density": 1.2,
         "obstacles": [("pothole", 3), ("branch", 2)],
         "curve_mult": 0.5,
     },
@@ -229,8 +232,11 @@ THEMES = {
         "grass":   (60, 110, 60),
         "road":    (72, 72, 82),
         "edge":    (220, 220, 220),
-        "decor":   ["oak", "oak", "pine", "pine", "bush", "rock_small"],
-        "decor_density": 1.15,
+        "decor":   ["oak", "oak", "oak", "pine", "pine", "bush", "bush", "rock_small"],
+        "decor_density": 2.4,
+        "clutter": ["grass_green", "grass_green", "grass_green", "grass_green",
+                    "rock_tiny", "flower_pink", "flower_yellow", "flower_white"],
+        "clutter_density": 1.4,
         "obstacles": [("pothole", 3), ("branch", 3)],
         "curve_mult": 0.85,
     },
@@ -238,8 +244,11 @@ THEMES = {
         "grass":   (95, 120, 75),
         "road":    (130, 115, 95),
         "edge":    (190, 175, 150),
-        "decor":   ["oak", "oak", "bush", "bush", "rock_small", "pine"],
-        "decor_density": 0.9,
+        "decor":   ["oak", "oak", "oak", "bush", "bush", "rock_small", "pine"],
+        "decor_density": 1.9,
+        "clutter": ["grass_green", "grass_green", "rock_tiny", "rock_tiny",
+                    "flower_yellow", "flower_white"],
+        "clutter_density": 1.2,
         "obstacles": [("pothole", 4), ("branch", 2)],
         "curve_mult": 0.75,
     },
@@ -247,8 +256,11 @@ THEMES = {
         "grass":   (135, 145, 80),
         "road":    (180, 160, 110),
         "edge":    (210, 190, 140),
-        "decor":   ["cypress", "cypress", "bush", "oak", "rock_small", "rock_big"],
-        "decor_density": 1.0,
+        "decor":   ["cypress", "cypress", "cypress", "bush", "oak", "rock_small", "rock_big"],
+        "decor_density": 2.0,
+        "clutter": ["grass_dry", "grass_dry", "grass_dry", "rock_tiny", "rock_tiny",
+                    "flower_yellow"],
+        "clutter_density": 1.4,
         "obstacles": [("pothole", 3), ("rock", 2), ("branch", 2)],
         "curve_mult": 0.95,
     },
@@ -256,8 +268,12 @@ THEMES = {
         "grass":   (95, 100, 85),
         "road":    (65, 65, 75),
         "edge":    (180, 180, 190),
-        "decor":   ["pine", "pine", "pine", "rock_big", "rock_big", "rock_small", "rock_small"],
-        "decor_density": 1.5,
+        "decor":   ["pine", "pine", "pine", "pine", "rock_big", "rock_big",
+                    "rock_small", "rock_small", "rock_small"],
+        "decor_density": 3.0,
+        "clutter": ["grass_rocky", "grass_rocky", "rock_tiny", "rock_tiny", "rock_tiny",
+                    "flower_white"],
+        "clutter_density": 1.5,
         "obstacles": [("pothole", 2), ("rock", 3), ("branch", 1)],
         "curve_mult": 1.4,
     },
@@ -265,8 +281,11 @@ THEMES = {
         "grass":   (225, 230, 235),
         "road":    (80, 80, 90),
         "edge":    (240, 240, 245),
-        "decor":   ["pine_snow", "pine_snow", "rock_big", "rock_big", "rock_small"],
-        "decor_density": 1.3,
+        "decor":   ["pine_snow", "pine_snow", "pine_snow", "rock_big", "rock_big",
+                    "rock_small", "rock_small"],
+        "decor_density": 2.6,
+        "clutter": ["grass_snow", "grass_snow", "grass_alpine", "rock_tiny", "rock_tiny"],
+        "clutter_density": 1.3,
         "obstacles": [("pothole", 2), ("rock", 3)],
         "curve_mult": 1.55,
     },
@@ -274,8 +293,12 @@ THEMES = {
         "grass":   (130, 105, 60),
         "road":    (75, 70, 75),
         "edge":    (215, 210, 200),
-        "decor":   ["oak_autumn", "oak_autumn", "bush_autumn", "bush_autumn", "pine", "rock_small"],
-        "decor_density": 1.2,
+        "decor":   ["oak_autumn", "oak_autumn", "oak_autumn", "bush_autumn", "bush_autumn",
+                    "pine", "rock_small"],
+        "decor_density": 2.2,
+        "clutter": ["grass_autumn", "grass_autumn", "grass_autumn", "rock_tiny",
+                    "flower_yellow"],
+        "clutter_density": 1.3,
         "obstacles": [("pothole", 2), ("branch", 4)],
         "curve_mult": 0.95,
     },
@@ -421,6 +444,40 @@ def make_bush_sprite(autumn=False):
     return s
 
 
+def make_grass_tuft_sprite(variant="green"):
+    palette = {
+        "green":   ((45, 105, 45), (90, 160, 75)),
+        "dry":     ((150, 140, 75), (200, 180, 100)),
+        "snow":    ((215, 222, 232), (245, 248, 255)),
+        "autumn":  ((140, 95, 50), (200, 150, 70)),
+        "alpine":  ((175, 175, 165), (215, 215, 200)),
+        "rocky":   ((100, 105, 75), (140, 150, 100)),
+        "coast":   ((80, 140, 60), (120, 180, 90)),
+    }
+    c1, c2 = palette.get(variant, palette["green"])
+    s = pygame.Surface((12, 11), pygame.SRCALPHA)
+    pygame.draw.line(s, c1, (1, 10), (2, 1), 2)
+    pygame.draw.line(s, c2, (4, 10), (5, 0), 2)
+    pygame.draw.line(s, c1, (7, 10), (7, 2), 2)
+    pygame.draw.line(s, c2, (10, 10), (9, 1), 2)
+    return s
+
+
+def make_small_rock_sprite():
+    s = pygame.Surface((12, 9), pygame.SRCALPHA)
+    pygame.draw.polygon(s, (115, 115, 120), [(1, 8), (3, 3), (8, 3), (11, 8)])
+    pygame.draw.polygon(s, (150, 150, 155), [(3, 5), (5, 3), (8, 5)])
+    return s
+
+
+def make_flower_sprite(color=(240, 80, 120)):
+    s = pygame.Surface((10, 12), pygame.SRCALPHA)
+    pygame.draw.line(s, (50, 110, 50), (5, 11), (5, 5), 1)
+    pygame.draw.circle(s, color, (5, 4), 3)
+    pygame.draw.circle(s, (255, 240, 120), (5, 4), 1)
+    return s
+
+
 SPECTATOR_COLORS = [
     (220, 70, 70),
     (90, 130, 220),
@@ -521,6 +578,17 @@ def make_decor_sprites():
         "bush_autumn": make_bush_sprite(autumn=True),
         "rock_big":    make_rock_decor_sprite(big=True),
         "rock_small":  make_rock_decor_sprite(big=False),
+        "rock_tiny":   make_small_rock_sprite(),
+        "grass_green":  make_grass_tuft_sprite("green"),
+        "grass_dry":    make_grass_tuft_sprite("dry"),
+        "grass_snow":   make_grass_tuft_sprite("snow"),
+        "grass_autumn": make_grass_tuft_sprite("autumn"),
+        "grass_alpine": make_grass_tuft_sprite("alpine"),
+        "grass_rocky":  make_grass_tuft_sprite("rocky"),
+        "grass_coast":  make_grass_tuft_sprite("coast"),
+        "flower_pink":   make_flower_sprite((240, 80, 120)),
+        "flower_yellow": make_flower_sprite((250, 220, 70)),
+        "flower_white":  make_flower_sprite((250, 250, 250)),
     }
     for i, col in enumerate(SPECTATOR_COLORS):
         d[f"spec_{i}_up"] = make_spectator_sprite(col, arms_up=True)
@@ -668,6 +736,7 @@ class Player:
         self.crashed_timer = 0.0
         self.flash_timer = 0.0
         self.on_grass = False
+        self.pedal_phase = 0.0
 
     def drink(self):
         if self.water > 0 and self.energy < self.max_energy:
@@ -760,6 +829,8 @@ class Player:
         if self.flash_timer > 0:
             self.flash_timer -= dt
 
+        self.pedal_phase += dt * (3.0 + self.speed * 0.18)
+
 
 class Opponent:
     def __init__(self, start_distance, base_speed, top_speed=56):
@@ -771,8 +842,13 @@ class Opponent:
         self.world_x = road_curve(start_distance) + self.lane_pref
         self.jersey = (random.randint(40, 230), random.randint(40, 230), random.randint(40, 230))
         self.helmet = (random.randint(30, 220), random.randint(30, 220), random.randint(30, 220))
-        self.sprite = make_cyclist_sprite(self.jersey, self.helmet)
+        base = make_cyclist_sprite(self.jersey, self.helmet)
+        self.sprite_frames = (
+            pygame.transform.rotate(base, 3),
+            pygame.transform.rotate(base, -3),
+        )
         self.wobble_phase = random.uniform(0, math.tau)
+        self.pedal_phase = random.uniform(0, math.tau)
 
     def update(self, dt):
         self.target_speed += random.gauss(0, 1.4) * dt
@@ -783,6 +859,7 @@ class Opponent:
         self.world_x += (target - self.world_x) * 2.2 * dt
         self.wobble_phase += dt * 2
         self.world_x += math.sin(self.wobble_phase) * 9 * dt
+        self.pedal_phase += dt * (3.0 + self.speed * 0.18)
 
 
 class Obstacle:
@@ -935,6 +1012,23 @@ def spawn_decor_ahead(player, decor, theme_data, next_distance):
         kind = random.choice(kinds)
         decor.append(Decor(next_distance, x, kind))
         gap = random.uniform(10, 32) / max(density, 0.15)
+        next_distance += gap
+    return next_distance
+
+
+def spawn_clutter_ahead(player, decor, theme_data, next_distance):
+    """Gras-Büschel, kleine Steine, Blumen — eng am Straßenrand, sehr dicht."""
+    horizon = player.distance + 220
+    kinds = theme_data.get("clutter", ["grass_green"])
+    density = theme_data.get("clutter_density", 1.0)
+    while next_distance < horizon:
+        rc = road_curve(next_distance)
+        side = random.choice([-1, 1])
+        offset = ROAD_WIDTH // 2 + random.randint(2, 36)
+        x = rc + side * offset
+        kind = random.choice(kinds)
+        decor.append(Decor(next_distance, x, kind))
+        gap = random.uniform(2.5, 7.0) / max(density, 0.2)
         next_distance += gap
     return next_distance
 
@@ -1108,15 +1202,18 @@ def draw_world_obj(screen, distance, world_x, sprite, player, y_jitter=0):
     screen.blit(sprite, (x - sprite.get_width() // 2, y - sprite.get_height() // 2))
 
 
-def draw_player(screen, player, sprite):
-    x = int(W // 2 - PLAYER_W // 2)
-    y = int(PLAYER_Y - PLAYER_H // 2)
+def draw_player(screen, player, sprite_frames):
+    s = math.sin(player.pedal_phase)
+    frame = sprite_frames[0] if s > 0 else sprite_frames[1]
+    bob = int(s * 2)
+    x = int(W // 2 - frame.get_width() // 2)
+    y = int(PLAYER_Y - frame.get_height() // 2 + bob)
     if player.flash_timer > 0 and int(player.flash_timer * 20) % 2 == 0:
-        flash = sprite.copy()
+        flash = frame.copy()
         flash.fill((255, 100, 100, 0), special_flags=pygame.BLEND_RGB_ADD)
         screen.blit(flash, (x, y))
     else:
-        screen.blit(sprite, (x, y))
+        screen.blit(frame, (x, y))
 
 
 def draw_hud(screen, player, position, total, distance_remaining, fonts, route, recent_pickup,
@@ -1183,16 +1280,16 @@ def draw_hud(screen, player, position, total, distance_remaining, fonts, route, 
 async def run_menu(screen, save_data, fonts):
     clock = pygame.time.Clock()
     cursor = 0
-    visible = 6
-    row_h = 56
+    visible = 9
+    row_h = 64
     options_count = len(ROUTES) + 1  # shop is index 0
-    list_x = 70
-    list_w = W - 140
-    list_y0 = 130
+    list_x = 20
+    list_w = W - 96
+    list_y0 = 140
     touch = TouchPad([
-        {"key": "up",   "rect": pygame.Rect(W - 78, list_y0,                       62, 62), "icon":  "up"},
-        {"key": "down", "rect": pygame.Rect(W - 78, list_y0 + visible * row_h - 68, 62, 62), "icon":  "down"},
-        {"key": "esc",  "rect": pygame.Rect(W - 100, 10,                           90, 40), "label": "Esc"},
+        {"key": "up",   "rect": pygame.Rect(W - 70, list_y0,                       62, 62), "icon":  "up"},
+        {"key": "down", "rect": pygame.Rect(W - 70, list_y0 + visible * row_h - 68, 62, 62), "icon":  "down"},
+        {"key": "esc",  "rect": pygame.Rect(W - 90, 10,                            80, 40), "label": "Esc"},
     ])
     star_full = make_star_sprite(filled=True)
     star_empty = make_star_sprite(filled=False)
@@ -1270,10 +1367,10 @@ async def run_menu(screen, save_data, fonts):
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
                     pygame.draw.rect(screen, YELLOW, (list_x, y, list_w, row_h - 6), 2, border_radius=10)
-                name = fonts["mid"].render("SHOP — Upgrades & Trikots", True, YELLOW)
-                screen.blit(name, (list_x + 18, y + 8))
+                name = fonts["mid"].render("SHOP — Upgrades", True, YELLOW)
+                screen.blit(name, (list_x + 14, y + 4))
                 desc = fonts["small"].render("Punkte ausgeben, Rad aufmotzen", True, HUD_DIM)
-                screen.blit(desc, (list_x + 18, y + 32))
+                screen.blit(desc, (list_x + 14, y + 34))
             else:
                 r = ROUTES[i - 1]
                 bg = (40, 52, 80) if sel else (28, 32, 48)
@@ -1281,21 +1378,27 @@ async def run_menu(screen, save_data, fonts):
                 if sel:
                     pygame.draw.rect(screen, BLUE, (list_x, y, list_w, row_h - 6), 2, border_radius=10)
                 name = fonts["mid"].render(r["name"], True, WHITE)
-                screen.blit(name, (list_x + 18, y + 6))
+                screen.blit(name, (list_x + 14, y + 4))
+                race_short = r["race"].split(" – ")[0].split(" (")[0]
+                if len(race_short) > 14:
+                    race_short = race_short[:13] + "…"
+                region_short = r["region"].split(",")[0]
+                if len(region_short) > 14:
+                    region_short = region_short[:13] + "…"
                 meta = fonts["small"].render(
-                    f"{r['race']} · {r['region']} · {r['distance_m']} m  ",
+                    f"{race_short} · {region_short} · {r['distance_m']}m",
                     True, HUD_DIM,
                 )
-                screen.blit(meta, (list_x + 18, y + 30))
-                sx = list_x + 18 + meta.get_width()
-                sy = y + 32
+                screen.blit(meta, (list_x + 14, y + 34))
+                sx = list_x + list_w - 5 * 16 - 14
+                sy = y + 36
                 for j in range(5):
                     spr = star_full if j < r["difficulty"] else star_empty
                     screen.blit(spr, (sx + j * 16, sy))
                 best = save_data.get("best", {}).get(r["id"])
                 if best:
-                    b = fonts["small"].render(f"Best: P{best}", True, YELLOW)
-                    screen.blit(b, (list_x + list_w - b.get_width() - 18, y + 14))
+                    b = fonts["small"].render(f"P{best}", True, YELLOW)
+                    screen.blit(b, (list_x + list_w - b.get_width() - 14, y + 10))
 
         if scroll_start > 0:
             screen.blit(fonts["small"].render("▲", True, HUD_DIM), (W // 2 - 6, list_y0 - 14))
@@ -1304,7 +1407,7 @@ async def run_menu(screen, save_data, fonts):
                         (W // 2 - 6, list_y0 + visible * row_h - 4))
 
         hint = fonts["small"].render(
-            "Tap auf Zeile · ↑/↓ wählen · Enter starten · Esc beenden",
+            "Tap · ↑/↓ wählen · Enter starten",
             True, HUD_DIM,
         )
         screen.blit(hint, (W // 2 - hint.get_width() // 2, H - 26))
@@ -1326,13 +1429,13 @@ async def run_shop(screen, save_data, fonts):
     cur = 0
     msg = ""
     msg_t = 0.0
-    list_y0 = 100
-    row_h = 30
+    list_y0 = 110
+    row_h = 44
     visible_rows = 16
     touch = TouchPad([
-        {"key": "up",   "rect": pygame.Rect(W - 78, list_y0,                            62, 62), "icon":  "up"},
-        {"key": "down", "rect": pygame.Rect(W - 78, list_y0 + visible_rows * row_h - 68, 62, 62), "icon":  "down"},
-        {"key": "esc",  "rect": pygame.Rect(W - 100, 10,                                90, 40), "label": "Esc"},
+        {"key": "up",   "rect": pygame.Rect(W - 70, list_y0,                            62, 62), "icon":  "up"},
+        {"key": "down", "rect": pygame.Rect(W - 70, list_y0 + visible_rows * row_h - 68, 62, 62), "icon":  "down"},
+        {"key": "esc",  "rect": pygame.Rect(W - 90, 10,                                 80, 40), "label": "Esc"},
     ])
     item_rects = []  # [(item_list_index, Rect)]
 
@@ -1391,19 +1494,21 @@ async def run_shop(screen, save_data, fonts):
 
         screen.fill((20, 24, 36))
         title = fonts["huge"].render("SHOP", True, YELLOW)
-        screen.blit(title, (40, 20))
+        screen.blit(title, (20, 20))
         pts = fonts["mid"].render(f"{save_data['points']} Punkte", True, WHITE)
-        screen.blit(pts, (W - pts.get_width() - 40, 30))
+        screen.blit(pts, (W - pts.get_width() - 20, 28))
         level, _, _ = level_from_points(save_data.get("xp", 0))
         lvl = fonts["small"].render(
             f"Level {level} · max Energie {max_energy_for_level(level)}",
             True, HUD_DIM,
         )
-        screen.blit(lvl, (W - lvl.get_width() - 40, 62))
+        screen.blit(lvl, (W - lvl.get_width() - 20, 58))
 
         cursor_row = selectable[cur]
         scroll_start = max(0, min(len(items_list) - visible_rows, cursor_row - visible_rows // 2))
         item_rects = []
+        row_w = W - 100   # Platz rechts für Touch-Buttons frei lassen
+        row_x = 20
         for slot in range(min(visible_rows, len(items_list))):
             i = scroll_start + slot
             if i >= len(items_list):
@@ -1411,34 +1516,34 @@ async def run_shop(screen, save_data, fonts):
             kind, data = items_list[i]
             y = list_y0 + slot * row_h
             if kind == "item":
-                item_rects.append((i, pygame.Rect(80, y - 2, W - 160, row_h - 2)))
+                item_rects.append((i, pygame.Rect(row_x, y - 2, row_w, row_h - 4)))
             if kind == "header":
                 lbl = ITEM_TYPE_LABELS.get(data, data).upper()
                 t = fonts["mid"].render(lbl, True, CYAN)
-                screen.blit(t, (60, y))
+                screen.blit(t, (row_x, y + 10))
             else:
                 item = data
                 owned = item["id"] in save_data["owned"]
                 equipped = save_data["equipped"].get(item["type"]) == item["id"]
                 sel = (i == cursor_row)
                 if sel:
-                    pygame.draw.rect(screen, (40, 50, 75), (80, y - 2, W - 160, row_h - 2), border_radius=6)
-                    pygame.draw.rect(screen, BLUE, (80, y - 2, W - 160, row_h - 2), 2, border_radius=6)
+                    pygame.draw.rect(screen, (40, 50, 75), (row_x, y - 2, row_w, row_h - 4), border_radius=6)
+                    pygame.draw.rect(screen, BLUE, (row_x, y - 2, row_w, row_h - 4), 2, border_radius=6)
                 name_c = WHITE if owned else HUD_TEXT
                 if equipped:
                     name_c = GREEN
                 if item.get("color") and item["type"] in ("jersey", "helmet"):
-                    pygame.draw.rect(screen, item["color"], (90, y + 4, 16, 16), border_radius=3)
+                    pygame.draw.rect(screen, item["color"], (row_x + 8, y + 6, 16, 16), border_radius=3)
                     if item.get("secondary"):
-                        pygame.draw.rect(screen, item["secondary"], (98, y + 6, 6, 12), border_radius=2)
+                        pygame.draw.rect(screen, item["secondary"], (row_x + 16, y + 8, 6, 12), border_radius=2)
                 name = fonts["small"].render(item["name"], True, name_c)
-                screen.blit(name, (114, y + 6))
+                screen.blit(name, (row_x + 34, y + 4))
                 ss = []
                 for k, v in item.get("stat", {}).items():
                     if k == "drain_mult":
-                        ss.append(f"Verbrauch ×{v}")
+                        ss.append(f"Verbr ×{v}")
                     elif k == "accel_mult":
-                        ss.append(f"Beschl. ×{v}")
+                        ss.append(f"Beschl ×{v}")
                     elif k == "max_speed_bonus":
                         ss.append(f"+{v} km/h")
                     elif k == "wind_resist":
@@ -1447,19 +1552,19 @@ async def run_shop(screen, save_data, fonts):
                         ss.append(f"{v} Flaschen")
                 if ss:
                     s_text = fonts["small"].render(" · ".join(ss), True, HUD_DIM)
-                    screen.blit(s_text, (360, y + 6))
+                    screen.blit(s_text, (row_x + 34, y + 22))
                 if equipped:
                     r = fonts["small"].render("Angelegt", True, GREEN)
                 elif owned:
-                    r = fonts["small"].render("Im Besitz · Enter anlegen", True, YELLOW)
+                    r = fonts["small"].render("Anlegen", True, YELLOW)
                 else:
                     can = save_data["points"] >= item["cost"]
                     color = YELLOW if can else (140, 80, 80)
                     r = fonts["small"].render(
-                        f"{item['cost']} pt · Enter kaufen" if can else f"{item['cost']} pt · zu teuer",
+                        f"{item['cost']} pt" if can else f"{item['cost']} pt!",
                         True, color,
                     )
-                screen.blit(r, (W - r.get_width() - 100, y + 6))
+                screen.blit(r, (row_x + row_w - r.get_width() - 8, y + 14))
 
         if scroll_start > 0:
             screen.blit(fonts["small"].render("▲", True, HUD_DIM), (W // 2 - 6, list_y0 - 14))
@@ -1472,7 +1577,7 @@ async def run_shop(screen, save_data, fonts):
             screen.blit(t, (W // 2 - t.get_width() // 2, H - 60))
 
         hint = fonts["small"].render(
-            "Tap auf Item · ↑/↓ wählen · Enter kaufen/anlegen · Esc zurück",
+            "Tap auf Item · Enter kaufen/anlegen",
             True, HUD_DIM,
         )
         screen.blit(hint, (W // 2 - hint.get_width() // 2, H - 26))
@@ -1508,6 +1613,7 @@ async def run_race(screen, route, save_data, fonts):
     next_goodie_d = 60.0
     next_decor_d = 30.0
     next_spec_d = 25.0
+    next_clutter_d = 20.0
     next_bale_t = random.uniform(2.5, 6.0)
     spawn_density = route["obstacle_density"]
     distance_target = route["distance_m"]
@@ -1523,10 +1629,14 @@ async def run_race(screen, route, save_data, fonts):
     rain_particles, snow_particles, wind_particles = init_weather_particles(weather, strong_wind)
     weather_label = {"rain": "Regen", "snow": "Schnee", "clear": ""}[weather]
 
-    player_sprite = make_cyclist_sprite(
+    _player_base = make_cyclist_sprite(
         player.stats["jersey_color"],
         player.stats["helmet_color"],
         player.stats["jersey_secondary"],
+    )
+    player_sprite_frames = (
+        pygame.transform.rotate(_player_base, 3),
+        pygame.transform.rotate(_player_base, -3),
     )
     obstacle_sprites = {
         "pothole":   make_pothole_sprite(),
@@ -1539,18 +1649,17 @@ async def run_race(screen, route, save_data, fonts):
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
 
-    btn_h = 100
-    side_w = 150
-    accel_w = 220
-    gap = 12
-    pad_y = H - 116 - 16 - btn_h
+    btn_h = 110
+    btn_w = 160
+    gap = 20
+    pad_y = H - 116 - 20 - btn_h
     touch = TouchPad([
-        {"key": "left",  "rect": pygame.Rect(20, pad_y, side_w, btn_h),                    "icon":  "left"},
-        {"key": "right", "rect": pygame.Rect(20 + side_w + gap, pad_y, side_w, btn_h),     "icon":  "right"},
-        {"key": "accel", "rect": pygame.Rect(W - 20 - accel_w, pad_y, accel_w, btn_h),     "icon":  "up"},
-        {"key": "drink", "rect": pygame.Rect(20, pad_y - 56, 2 * side_w + gap, 48),        "label": "TRINK"},
-        {"key": "esc",   "rect": pygame.Rect(W - 100, 10, 90, 40),                         "label": "Esc"},
-        {"key": "menu",  "rect": pygame.Rect(W // 2 - 130, 410, 260, 64),                  "label": "Zurück"},
+        {"key": "left",  "rect": pygame.Rect(10, pad_y, btn_w, btn_h),                "icon":  "left"},
+        {"key": "right", "rect": pygame.Rect(10 + btn_w + gap, pad_y, btn_w, btn_h),  "icon":  "right"},
+        {"key": "accel", "rect": pygame.Rect(W - 10 - btn_w, pad_y, btn_w, btn_h),    "icon":  "up"},
+        {"key": "drink", "rect": pygame.Rect(10, pad_y - 58, W - 20, 50),             "label": "TRINK"},
+        {"key": "esc",   "rect": pygame.Rect(W - 90, 10, 80, 40),                     "label": "Esc"},
+        {"key": "menu",  "rect": pygame.Rect(W // 2 - 130, 640, 260, 70),             "label": "Zurück"},
     ])
 
     elapsed = 0.0
@@ -1610,6 +1719,7 @@ async def run_race(screen, route, save_data, fonts):
             next_goodie_d = spawn_goodies_ahead(player, goodies, next_goodie_d)
             next_decor_d = spawn_decor_ahead(player, decor, theme_data, next_decor_d)
             next_spec_d = spawn_spectators_ahead(player, decor, next_spec_d)
+            next_clutter_d = spawn_clutter_ahead(player, decor, theme_data, next_clutter_d)
             if strong_wind:
                 next_bale_t -= dt
                 if next_bale_t <= 0:
@@ -1669,7 +1779,10 @@ async def run_race(screen, route, save_data, fonts):
                 spr = decor_sprites[d.kind]
             draw_world_obj(screen, d.distance, d.world_x, spr, player)
         for o in sorted(opponents, key=lambda x: x.distance):
-            draw_world_obj(screen, o.distance, o.world_x, o.sprite, player)
+            s = math.sin(o.pedal_phase)
+            frame = o.sprite_frames[0] if s > 0 else o.sprite_frames[1]
+            draw_world_obj(screen, o.distance, o.world_x, frame, player,
+                           y_jitter=s * 1.5)
         for o in obstacles:
             draw_world_obj(screen, o.distance, o.world_x, obstacle_sprites[o.kind], player)
         for g in goodies:
@@ -1681,7 +1794,7 @@ async def run_race(screen, route, save_data, fonts):
             rotated = pygame.transform.rotate(haybale_sprite, math.degrees(b.spin))
             draw_world_obj(screen, b.distance, b.world_x, rotated, player)
         draw_finish_line(screen, player, distance_target)
-        draw_player(screen, player, player_sprite)
+        draw_player(screen, player, player_sprite_frames)
         draw_weather_particles(screen, rain_particles, snow_particles, wind_particles)
 
         pos = player_position(player, opponents)
