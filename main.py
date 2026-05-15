@@ -11,11 +11,30 @@ from routes import ROUTES
 
 IS_WEB = sys.platform == "emscripten"
 
-W, H = 540, 960
+
+def _initial_size():
+    """Bevorzugt das echte Browser-Viewport, damit es aufm Handy nicht
+    quadratisch ausschaut. Auf dem Desktop ein vernünftiges Portrait."""
+    if IS_WEB:
+        try:
+            from js import window  # type: ignore
+            w = int(window.innerWidth)
+            h = int(window.innerHeight)
+            w = max(320, min(w, 1200))
+            h = max(480, min(h, 2400))
+            return w, h
+        except Exception:
+            pass
+    return 540, 960
+
+
+W, H = _initial_size()
 FPS = 60
-ROAD_WIDTH = 200
-PLAYER_Y = 500
+ROAD_WIDTH = max(150, min(220, W // 3))
+PLAYER_Y = H // 2
 PLAYER_W, PLAYER_H = 26, 48
+HUD_H = max(96, min(H // 7, 140))
+FONT_SCALE = max(0.7, min(H / 960.0, 1.6))
 PX_PER_M = 25
 MIN_SPEED = 8
 MAX_SPEED_BASE = 64
@@ -1218,7 +1237,7 @@ def draw_player(screen, player, sprite_frames):
 
 def draw_hud(screen, player, position, total, distance_remaining, fonts, route, recent_pickup,
              weather_label="", strong_wind=False):
-    h = 116
+    h = HUD_H
     pygame.draw.rect(screen, HUD_BG, (0, H - h, W, h))
     pygame.draw.rect(screen, (40, 50, 70), (0, H - h, W, 2))
 
@@ -1280,12 +1299,12 @@ def draw_hud(screen, player, position, total, distance_remaining, fonts, route, 
 async def run_menu(screen, save_data, fonts):
     clock = pygame.time.Clock()
     cursor = 0
-    visible = 9
     row_h = 64
     options_count = len(ROUTES) + 1  # shop is index 0
     list_x = 20
     list_w = W - 96
     list_y0 = 140
+    visible = max(4, min(options_count, (H - list_y0 - 60) // row_h))
     touch = TouchPad([
         {"key": "up",   "rect": pygame.Rect(W - 70, list_y0,                       62, 62), "icon":  "up"},
         {"key": "down", "rect": pygame.Rect(W - 70, list_y0 + visible * row_h - 68, 62, 62), "icon":  "down"},
@@ -1431,7 +1450,7 @@ async def run_shop(screen, save_data, fonts):
     msg_t = 0.0
     list_y0 = 110
     row_h = 44
-    visible_rows = 16
+    visible_rows = max(6, min(22, (H - list_y0 - 60) // row_h))
     touch = TouchPad([
         {"key": "up",   "rect": pygame.Rect(W - 70, list_y0,                            62, 62), "icon":  "up"},
         {"key": "down", "rect": pygame.Rect(W - 70, list_y0 + visible_rows * row_h - 68, 62, 62), "icon":  "down"},
@@ -1649,17 +1668,19 @@ async def run_race(screen, route, save_data, fonts):
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
 
-    btn_h = 110
-    btn_w = 160
-    gap = 20
-    pad_y = H - 116 - 20 - btn_h
+    btn_h = max(80, min(int(H * 0.13), 140))
+    margin = max(8, W // 60)
+    gap = max(10, W // 50)
+    btn_w = max(96, (W - 2 * margin - 2 * gap) // 3)
+    pad_y = H - HUD_H - 16 - btn_h
+    drink_h = max(40, int(H * 0.055))
     touch = TouchPad([
-        {"key": "left",  "rect": pygame.Rect(10, pad_y, btn_w, btn_h),                "icon":  "left"},
-        {"key": "right", "rect": pygame.Rect(10 + btn_w + gap, pad_y, btn_w, btn_h),  "icon":  "right"},
-        {"key": "accel", "rect": pygame.Rect(W - 10 - btn_w, pad_y, btn_w, btn_h),    "icon":  "up"},
-        {"key": "drink", "rect": pygame.Rect(10, pad_y - 58, W - 20, 50),             "label": "TRINK"},
-        {"key": "esc",   "rect": pygame.Rect(W - 90, 10, 80, 40),                     "label": "Esc"},
-        {"key": "menu",  "rect": pygame.Rect(W // 2 - 130, 640, 260, 70),             "label": "Zurück"},
+        {"key": "left",  "rect": pygame.Rect(margin, pad_y, btn_w, btn_h),                  "icon":  "left"},
+        {"key": "right", "rect": pygame.Rect(margin + btn_w + gap, pad_y, btn_w, btn_h),    "icon":  "right"},
+        {"key": "accel", "rect": pygame.Rect(W - margin - btn_w, pad_y, btn_w, btn_h),      "icon":  "up"},
+        {"key": "drink", "rect": pygame.Rect(margin, pad_y - drink_h - 8, W - 2 * margin, drink_h), "label": "TRINK"},
+        {"key": "esc",   "rect": pygame.Rect(W - 90, 10, 80, 40),                           "label": "Esc"},
+        {"key": "menu",  "rect": pygame.Rect(W // 2 - 130, int(H * 0.66), 260, 70),         "label": "Zurück"},
     ])
 
     elapsed = 0.0
@@ -1842,10 +1863,10 @@ async def main():
     pygame.display.set_caption("Radgame")
     screen = pygame.display.set_mode((W, H))
     fonts = {
-        "huge":  pygame.font.Font(None, 64),
-        "big":   pygame.font.Font(None, 48),
-        "mid":   pygame.font.Font(None, 28),
-        "small": pygame.font.Font(None, 20),
+        "huge":  pygame.font.Font(None, max(28, int(64 * FONT_SCALE))),
+        "big":   pygame.font.Font(None, max(22, int(48 * FONT_SCALE))),
+        "mid":   pygame.font.Font(None, max(16, int(28 * FONT_SCALE))),
+        "small": pygame.font.Font(None, max(12, int(20 * FONT_SCALE))),
     }
     while True:
         save_data = load_save()
