@@ -419,6 +419,21 @@ def make_decor_sprites():
     }
 
 
+def make_star_sprite(filled=True, size=14):
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    cx = cy = size // 2
+    pts = []
+    for i in range(10):
+        ang = -math.pi / 2 + i * math.pi / 5
+        r = (size // 2) if i % 2 == 0 else (size // 4)
+        pts.append((cx + math.cos(ang) * r, cy + math.sin(ang) * r))
+    if filled:
+        pygame.draw.polygon(s, YELLOW, pts)
+    else:
+        pygame.draw.polygon(s, (110, 100, 70), pts, 1)
+    return s
+
+
 def make_goodie_sprite(kind):
     s = pygame.Surface((22, 24), pygame.SRCALPHA)
     if kind == "bottle":
@@ -497,9 +512,31 @@ class TouchPad:
             border = (220, 230, 250, 220) if held else (140, 150, 180, 160)
             pygame.draw.rect(surf, bg, surf.get_rect(), border_radius=12)
             pygame.draw.rect(surf, border, surf.get_rect(), 2, border_radius=12)
+            if "icon" in btn:
+                self._draw_icon(surf, btn["icon"])
             screen.blit(surf, rect.topleft)
-            label = font.render(btn["label"], True, WHITE)
-            screen.blit(label, label.get_rect(center=rect.center))
+            if "label" in btn:
+                label = font.render(btn["label"], True, WHITE)
+                screen.blit(label, label.get_rect(center=rect.center))
+
+    @staticmethod
+    def _draw_icon(surf, kind, color=WHITE):
+        r = surf.get_rect()
+        cx, cy = r.centerx, r.centery
+        # Icon-Größe richtet sich nach der kleineren Button-Dimension.
+        s = max(14, min(r.w, r.h) // 3)
+        if kind == "left":
+            pygame.draw.polygon(surf, color,
+                                [(cx - s, cy), (cx + s // 2, cy - s), (cx + s // 2, cy + s)])
+        elif kind == "right":
+            pygame.draw.polygon(surf, color,
+                                [(cx + s, cy), (cx - s // 2, cy - s), (cx - s // 2, cy + s)])
+        elif kind == "up":
+            pygame.draw.polygon(surf, color,
+                                [(cx, cy - s), (cx - s, cy + s // 2), (cx + s, cy + s // 2)])
+        elif kind == "down":
+            pygame.draw.polygon(surf, color,
+                                [(cx, cy + s), (cx - s, cy - s // 2), (cx + s, cy - s // 2)])
 
 
 class Player:
@@ -884,10 +921,12 @@ async def run_menu(screen, save_data, fonts):
     list_w = W - 140
     list_y0 = 130
     touch = TouchPad([
-        {"key": "up",   "rect": pygame.Rect(W - 60, list_y0,                       44, 44), "label": "▲"},
-        {"key": "down", "rect": pygame.Rect(W - 60, list_y0 + visible * row_h - 50, 44, 44), "label": "▼"},
-        {"key": "esc",  "rect": pygame.Rect(W - 80, 10,                            70, 36), "label": "Esc"},
+        {"key": "up",   "rect": pygame.Rect(W - 78, list_y0,                       62, 62), "icon":  "up"},
+        {"key": "down", "rect": pygame.Rect(W - 78, list_y0 + visible * row_h - 68, 62, 62), "icon":  "down"},
+        {"key": "esc",  "rect": pygame.Rect(W - 100, 10,                           90, 40), "label": "Esc"},
     ])
+    star_full = make_star_sprite(filled=True)
+    star_empty = make_star_sprite(filled=False)
     row_rects = []
     while True:
         clock.tick(FPS)
@@ -974,12 +1013,16 @@ async def run_menu(screen, save_data, fonts):
                     pygame.draw.rect(screen, BLUE, (list_x, y, list_w, row_h - 6), 2, border_radius=10)
                 name = fonts["mid"].render(r["name"], True, WHITE)
                 screen.blit(name, (list_x + 18, y + 6))
-                stars = "★" * r["difficulty"] + "☆" * (5 - r["difficulty"])
                 meta = fonts["small"].render(
-                    f"{r['race']} · {r['region']} · {r['distance_m']} m · {stars}",
+                    f"{r['race']} · {r['region']} · {r['distance_m']} m  ",
                     True, HUD_DIM,
                 )
                 screen.blit(meta, (list_x + 18, y + 30))
+                sx = list_x + 18 + meta.get_width()
+                sy = y + 32
+                for j in range(5):
+                    spr = star_full if j < r["difficulty"] else star_empty
+                    screen.blit(spr, (sx + j * 16, sy))
                 best = save_data.get("best", {}).get(r["id"])
                 if best:
                     b = fonts["small"].render(f"Best: P{best}", True, YELLOW)
@@ -1018,9 +1061,9 @@ async def run_shop(screen, save_data, fonts):
     row_h = 30
     visible_rows = 16
     touch = TouchPad([
-        {"key": "up",   "rect": pygame.Rect(W - 60, list_y0,                            44, 44), "label": "▲"},
-        {"key": "down", "rect": pygame.Rect(W - 60, list_y0 + visible_rows * row_h - 50, 44, 44), "label": "▼"},
-        {"key": "esc",  "rect": pygame.Rect(W - 80, 10,                                 70, 36), "label": "Esc"},
+        {"key": "up",   "rect": pygame.Rect(W - 78, list_y0,                            62, 62), "icon":  "up"},
+        {"key": "down", "rect": pygame.Rect(W - 78, list_y0 + visible_rows * row_h - 68, 62, 62), "icon":  "down"},
+        {"key": "esc",  "rect": pygame.Rect(W - 100, 10,                                90, 40), "label": "Esc"},
     ])
     item_rects = []  # [(item_list_index, Rect)]
 
@@ -1203,16 +1246,17 @@ async def run_race(screen, route, save_data, fonts):
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
 
-    btn = 78
+    btn = 100
+    gap = 12
     pad_y = H - 116 - 16 - btn
     touch = TouchPad([
-        {"key": "left",  "rect": pygame.Rect(20, pad_y, btn, btn),                "label": "◀"},
-        {"key": "right", "rect": pygame.Rect(20 + btn + 10, pad_y, btn, btn),     "label": "▶"},
-        {"key": "brake", "rect": pygame.Rect(W - 20 - 2 * btn - 10, pad_y, btn, btn), "label": "▼"},
-        {"key": "accel", "rect": pygame.Rect(W - 20 - btn, pad_y, btn, btn),      "label": "▲"},
-        {"key": "drink", "rect": pygame.Rect(W // 2 - 50, pad_y + 10, 100, 50),   "label": "Trink"},
-        {"key": "esc",   "rect": pygame.Rect(W - 80, 10, 70, 36),                 "label": "Esc"},
-        {"key": "menu",  "rect": pygame.Rect(W // 2 - 110, 410, 220, 60),         "label": "Zurück"},
+        {"key": "left",  "rect": pygame.Rect(20, pad_y, btn, btn),                       "icon":  "left"},
+        {"key": "right", "rect": pygame.Rect(20 + btn + gap, pad_y, btn, btn),           "icon":  "right"},
+        {"key": "brake", "rect": pygame.Rect(W - 20 - 2 * btn - gap, pad_y, btn, btn),   "icon":  "down"},
+        {"key": "accel", "rect": pygame.Rect(W - 20 - btn, pad_y, btn, btn),             "icon":  "up"},
+        {"key": "drink", "rect": pygame.Rect(20, pad_y - 56, 2 * btn + gap, 48),         "label": "TRINK"},
+        {"key": "esc",   "rect": pygame.Rect(W - 100, 10, 90, 40),                       "label": "Esc"},
+        {"key": "menu",  "rect": pygame.Rect(W // 2 - 130, 410, 260, 64),                "label": "Zurück"},
     ])
 
     elapsed = 0.0
