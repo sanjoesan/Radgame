@@ -436,6 +436,72 @@ def make_goodie_sprite(kind):
     return s
 
 
+def event_tap_pos(event):
+    """Pixel-Position eines Tap-/Klick-Events oder None."""
+    if event.type == pygame.FINGERDOWN:
+        return (int(event.x * W), int(event.y * H))
+    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        return event.pos
+    return None
+
+
+class TouchPad:
+    """Hält den State aller aktiven Pointer (Finger + Maus) und welche
+    benannten Buttons gerade gedrückt sind. Multi-touch-fähig, damit man
+    gleichzeitig lenken und beschleunigen kann."""
+
+    def __init__(self, buttons):
+        self.buttons = buttons  # [{"key": str, "rect": Rect, "label": str}]
+        self.pointers = {}  # pointer_id -> (x, y)
+
+    def handle_event(self, event):
+        if event.type == pygame.FINGERDOWN:
+            self.pointers[("f", event.finger_id)] = (event.x * W, event.y * H)
+        elif event.type == pygame.FINGERMOTION:
+            pid = ("f", event.finger_id)
+            if pid in self.pointers:
+                self.pointers[pid] = (event.x * W, event.y * H)
+        elif event.type == pygame.FINGERUP:
+            self.pointers.pop(("f", event.finger_id), None)
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self.pointers[("m", 0)] = event.pos
+        elif event.type == pygame.MOUSEMOTION:
+            if ("m", 0) in self.pointers:
+                self.pointers[("m", 0)] = event.pos
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            self.pointers.pop(("m", 0), None)
+
+    def pressed_keys(self):
+        out = set()
+        for pos in self.pointers.values():
+            for btn in self.buttons:
+                if btn["rect"].collidepoint(pos):
+                    out.add(btn["key"])
+        return out
+
+    def key_at(self, pos):
+        for btn in self.buttons:
+            if btn["rect"].collidepoint(pos):
+                return btn["key"]
+        return None
+
+    def draw(self, screen, font, only=None):
+        pressed = self.pressed_keys()
+        for btn in self.buttons:
+            if only is not None and btn["key"] not in only:
+                continue
+            rect = btn["rect"]
+            held = btn["key"] in pressed
+            surf = pygame.Surface(rect.size, pygame.SRCALPHA)
+            bg = (60, 80, 120, 210) if held else (25, 30, 45, 130)
+            border = (220, 230, 250, 220) if held else (140, 150, 180, 160)
+            pygame.draw.rect(surf, bg, surf.get_rect(), border_radius=12)
+            pygame.draw.rect(surf, border, surf.get_rect(), 2, border_radius=12)
+            screen.blit(surf, rect.topleft)
+            label = font.render(btn["label"], True, WHITE)
+            screen.blit(label, label.get_rect(center=rect.center))
+
+
 class Player:
     def __init__(self, save_data):
         self.stats = compute_stats(save_data)
@@ -478,11 +544,16 @@ class Player:
             return True
         return False
 
-    def update(self, dt, keys, route, wind_phase):
+    def update(self, dt, keys, route, wind_phase, touch=None):
         accel = keys[pygame.K_UP] or keys[pygame.K_w]
         brake = keys[pygame.K_DOWN] or keys[pygame.K_s]
         left = keys[pygame.K_LEFT] or keys[pygame.K_a]
         right = keys[pygame.K_RIGHT] or keys[pygame.K_d]
+        if touch:
+            accel = accel or "accel" in touch
+            brake = brake or "brake" in touch
+            left = left or "left" in touch
+            right = right or "right" in touch
 
         if self.crashed_timer > 0:
             self.crashed_timer -= dt
@@ -809,6 +880,15 @@ async def run_menu(screen, save_data, fonts):
     visible = 6
     row_h = 56
     options_count = len(ROUTES) + 1  # shop is index 0
+    list_x = 70
+    list_w = W - 140
+    list_y0 = 130
+    touch = TouchPad([
+        {"key": "up",   "rect": pygame.Rect(W - 60, list_y0,                       44, 44), "label": "▲"},
+        {"key": "down", "rect": pygame.Rect(W - 60, list_y0 + visible * row_h - 50, 44, 44), "label": "▼"},
+        {"key": "esc",  "rect": pygame.Rect(W - 80, 10,                            70, 36), "label": "Esc"},
+    ])
+    row_rects = []
     while True:
         clock.tick(FPS)
         for event in pygame.event.get():
@@ -829,6 +909,22 @@ async def run_menu(screen, save_data, fonts):
                     return ("race", ROUTES[cursor - 1])
                 if event.key == pygame.K_ESCAPE:
                     return None
+            touch.handle_event(event)
+            tap = event_tap_pos(event)
+            if tap is not None:
+                tkey = touch.key_at(tap)
+                if tkey == "esc":
+                    return None
+                if tkey == "up":
+                    cursor = (cursor - 1) % options_count
+                elif tkey == "down":
+                    cursor = (cursor + 1) % options_count
+                else:
+                    for idx, rect in row_rects:
+                        if rect.collidepoint(tap):
+                            if idx == 0:
+                                return ("shop", None)
+                            return ("race", ROUTES[idx - 1])
 
         screen.fill((22, 26, 40))
         title = fonts["huge"].render("RADGAME", True, WHITE)
@@ -853,15 +949,14 @@ async def run_menu(screen, save_data, fonts):
         pygame.draw.rect(screen, YELLOW, (bar_x, bar_y, int(bar_w * pct), 6), border_radius=3)
 
         scroll_start = max(0, min(options_count - visible, cursor - visible // 2))
-        list_x = 70
-        list_w = W - 140
-        list_y0 = 130
+        row_rects = []
         for slot in range(min(visible, options_count)):
             i = scroll_start + slot
             if i >= options_count:
                 break
             y = list_y0 + slot * row_h
             sel = (i == cursor)
+            row_rects.append((i, pygame.Rect(list_x, y, list_w, row_h - 6)))
             if i == 0:
                 bg = (60, 50, 30) if sel else (40, 35, 25)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
@@ -897,10 +992,12 @@ async def run_menu(screen, save_data, fonts):
                         (W // 2 - 6, list_y0 + visible * row_h - 4))
 
         hint = fonts["small"].render(
-            "↑/↓ wählen · PgUp/PgDn springen · Enter starten · Esc beenden",
+            "Tap auf Zeile · ↑/↓ wählen · Enter starten · Esc beenden",
             True, HUD_DIM,
         )
         screen.blit(hint, (W // 2 - hint.get_width() // 2, H - 26))
+
+        touch.draw(screen, fonts["mid"])
 
         pygame.display.flip()
         await asyncio.sleep(0)
@@ -917,6 +1014,35 @@ async def run_shop(screen, save_data, fonts):
     cur = 0
     msg = ""
     msg_t = 0.0
+    list_y0 = 100
+    row_h = 30
+    visible_rows = 16
+    touch = TouchPad([
+        {"key": "up",   "rect": pygame.Rect(W - 60, list_y0,                            44, 44), "label": "▲"},
+        {"key": "down", "rect": pygame.Rect(W - 60, list_y0 + visible_rows * row_h - 50, 44, 44), "label": "▼"},
+        {"key": "esc",  "rect": pygame.Rect(W - 80, 10,                                 70, 36), "label": "Esc"},
+    ])
+    item_rects = []  # [(item_list_index, Rect)]
+
+    def activate_item(item):
+        nonlocal msg, msg_t
+        if item["id"] in save_data["owned"]:
+            if save_data["equipped"][item["type"]] != item["id"]:
+                save_data["equipped"][item["type"]] = item["id"]
+                save_state(save_data)
+                msg = f"Angelegt: {item['name']}"
+                msg_t = 1.6
+        else:
+            if save_data["points"] >= item["cost"]:
+                save_data["points"] -= item["cost"]
+                save_data["owned"].append(item["id"])
+                save_data["equipped"][item["type"]] = item["id"]
+                save_state(save_data)
+                msg = f"Gekauft & angelegt: {item['name']}"
+                msg_t = 2.0
+            else:
+                msg = f"Zu wenig Punkte für {item['name']}"
+                msg_t = 1.5
 
     while True:
         dt = clock.tick(FPS) / 1000.0
@@ -933,24 +1059,23 @@ async def run_shop(screen, save_data, fonts):
                 if event.key in (pygame.K_DOWN, pygame.K_s):
                     cur = (cur + 1) % len(selectable)
                 if event.key in (pygame.K_RETURN, pygame.K_SPACE):
-                    item = items_list[selectable[cur]][1]
-                    if item["id"] in save_data["owned"]:
-                        if save_data["equipped"][item["type"]] != item["id"]:
-                            save_data["equipped"][item["type"]] = item["id"]
-                            save_state(save_data)
-                            msg = f"Angelegt: {item['name']}"
-                            msg_t = 1.6
-                    else:
-                        if save_data["points"] >= item["cost"]:
-                            save_data["points"] -= item["cost"]
-                            save_data["owned"].append(item["id"])
-                            save_data["equipped"][item["type"]] = item["id"]
-                            save_state(save_data)
-                            msg = f"Gekauft & angelegt: {item['name']}"
-                            msg_t = 2.0
-                        else:
-                            msg = f"Zu wenig Punkte für {item['name']}"
-                            msg_t = 1.5
+                    activate_item(items_list[selectable[cur]][1])
+            touch.handle_event(event)
+            tap = event_tap_pos(event)
+            if tap is not None:
+                tkey = touch.key_at(tap)
+                if tkey == "esc":
+                    return
+                if tkey == "up":
+                    cur = (cur - 1) % len(selectable)
+                elif tkey == "down":
+                    cur = (cur + 1) % len(selectable)
+                else:
+                    for idx, rect in item_rects:
+                        if rect.collidepoint(tap):
+                            cur = selectable.index(idx)
+                            activate_item(items_list[idx][1])
+                            break
 
         screen.fill((20, 24, 36))
         title = fonts["huge"].render("SHOP", True, YELLOW)
@@ -964,17 +1089,17 @@ async def run_shop(screen, save_data, fonts):
         )
         screen.blit(lvl, (W - lvl.get_width() - 40, 62))
 
-        list_y0 = 100
-        row_h = 30
-        visible_rows = 16
         cursor_row = selectable[cur]
         scroll_start = max(0, min(len(items_list) - visible_rows, cursor_row - visible_rows // 2))
+        item_rects = []
         for slot in range(min(visible_rows, len(items_list))):
             i = scroll_start + slot
             if i >= len(items_list):
                 break
             kind, data = items_list[i]
             y = list_y0 + slot * row_h
+            if kind == "item":
+                item_rects.append((i, pygame.Rect(80, y - 2, W - 160, row_h - 2)))
             if kind == "header":
                 lbl = ITEM_TYPE_LABELS.get(data, data).upper()
                 t = fonts["mid"].render(lbl, True, CYAN)
@@ -1035,10 +1160,12 @@ async def run_shop(screen, save_data, fonts):
             screen.blit(t, (W // 2 - t.get_width() // 2, H - 60))
 
         hint = fonts["small"].render(
-            "↑/↓ wählen · Enter kaufen/anlegen · Esc zurück",
+            "Tap auf Item · ↑/↓ wählen · Enter kaufen/anlegen · Esc zurück",
             True, HUD_DIM,
         )
         screen.blit(hint, (W // 2 - hint.get_width() // 2, H - 26))
+
+        touch.draw(screen, fonts["mid"])
 
         pygame.display.flip()
         await asyncio.sleep(0)
@@ -1076,6 +1203,18 @@ async def run_race(screen, route, save_data, fonts):
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
 
+    btn = 78
+    pad_y = H - 116 - 16 - btn
+    touch = TouchPad([
+        {"key": "left",  "rect": pygame.Rect(20, pad_y, btn, btn),                "label": "◀"},
+        {"key": "right", "rect": pygame.Rect(20 + btn + 10, pad_y, btn, btn),     "label": "▶"},
+        {"key": "brake", "rect": pygame.Rect(W - 20 - 2 * btn - 10, pad_y, btn, btn), "label": "▼"},
+        {"key": "accel", "rect": pygame.Rect(W - 20 - btn, pad_y, btn, btn),      "label": "▲"},
+        {"key": "drink", "rect": pygame.Rect(W // 2 - 50, pad_y + 10, 100, 50),   "label": "Trink"},
+        {"key": "esc",   "rect": pygame.Rect(W - 80, 10, 70, 36),                 "label": "Esc"},
+        {"key": "menu",  "rect": pygame.Rect(W // 2 - 110, 410, 220, 60),         "label": "Zurück"},
+    ])
+
     elapsed = 0.0
     wind_phase = 0.0
     state = "racing"
@@ -1105,13 +1244,24 @@ async def run_race(screen, route, save_data, fonts):
                     player.drink()
                 if event.key == pygame.K_RETURN and state == "finished":
                     return
+            touch.handle_event(event)
+            tap = event_tap_pos(event)
+            if tap is not None:
+                key = touch.key_at(tap)
+                if key == "esc":
+                    return
+                if state == "racing" and key == "drink":
+                    player.drink()
+                if state == "finished" and key == "menu":
+                    return
 
         keys = pygame.key.get_pressed()
+        pressed_touch = touch.pressed_keys() if state == "racing" else set()
 
         if state == "racing":
             elapsed += dt
             wind_phase += dt * 1.3
-            player.update(dt, keys, route, wind_phase)
+            player.update(dt, keys, route, wind_phase, touch=pressed_touch)
             for o in opponents:
                 o.update(dt)
             next_obs_d = spawn_obstacles_ahead(player, obstacles, spawn_density, next_obs_d, theme_data)
@@ -1167,6 +1317,10 @@ async def run_race(screen, route, save_data, fonts):
         rp = (recent_pickup, recent_pickup_t) if recent_pickup else None
         draw_hud(screen, player, pos, len(opponents) + 1, remaining, fonts, route, rp)
 
+        if state == "racing":
+            touch.draw(screen, fonts["mid"],
+                       only={"left", "right", "accel", "brake", "drink", "esc"})
+
         if state == "finished":
             overlay = pygame.Surface((W, H), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 190))
@@ -1186,8 +1340,9 @@ async def run_race(screen, route, save_data, fonts):
             if level_up:
                 lup = fonts["mid"].render(f"LEVEL UP! Max-Energie jetzt {max_energy_for_level(new_lvl)}", True, GREEN)
                 screen.blit(lup, (W // 2 - lup.get_width() // 2, 322))
-            hint = fonts["small"].render("Enter: zurück zum Menü", True, HUD_DIM)
+            hint = fonts["small"].render("Enter / Tap: zurück zum Menü", True, HUD_DIM)
             screen.blit(hint, (W // 2 - hint.get_width() // 2, 380))
+            touch.draw(screen, fonts["mid"], only={"menu"})
 
         pygame.display.flip()
         await asyncio.sleep(0)
