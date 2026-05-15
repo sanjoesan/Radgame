@@ -37,7 +37,7 @@ HUD_H = max(96, min(H // 7, 140))
 FONT_SCALE = max(0.7, min(H / 960.0, 1.6))
 PX_PER_M = 25
 MIN_SPEED = 8
-MAX_SPEED_BASE = 64
+MAX_SPEED_BASE = 58
 EMPTY_ENERGY_SPEED = 20
 BASE_MAX_ENERGY = 100
 DRINK_AMOUNT = 32
@@ -834,9 +834,9 @@ class Player:
         off = self.world_x - road_c
         self.on_grass = abs(off) > ROAD_WIDTH // 2 - PLAYER_W // 2
 
-        base_drain = 0.30
+        base_drain = 0.22
         over = max(0.0, (self.speed - 26) / 20)
-        drain = base_drain + over ** 2 * 3.0
+        drain = base_drain + over ** 2 * 2.2
         drain *= 1.0 + route.get("heat", 0) * 0.6
         drain *= self.stats["drain_mult"]
         self.energy = max(0.0, self.energy - drain * dt)
@@ -1617,8 +1617,8 @@ async def run_race(screen, route, save_data, fonts):
     # Gegner skalieren mit der Spieler-Ausrüstung: bessere Räder/Rahmen/Helm
     # erhöhen player.max_speed und damit auch das Gegner-Tempo und ihr Cap.
     gear_bonus = player.stats["max_speed_bonus"]
-    base = 38 - route["difficulty"] * 1.0 + gear_bonus * 0.7
-    opp_top = 56 + gear_bonus * 0.8
+    base = 34 - route["difficulty"] * 1.0 + gear_bonus * 0.7
+    opp_top = 50 + gear_bonus * 0.8
     opponents = [Opponent(random.uniform(15, 110),
                           base + random.uniform(-4, 8),
                           top_speed=opp_top)
