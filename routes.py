@@ -21,20 +21,6 @@ Felder:
 
 ROUTES = [
     {
-        "id": "garsten",
-        "name": "Heimrunde Garsten",
-        "race": "Trainingsfahrt",
-        "region": "Oberösterreich",
-        "distance_m": 1600,
-        "real_distance_km": 35,
-        "difficulty": 1,
-        "opponents": 3,
-        "obstacle_density": 0.5,
-        "wind": 0.1,
-        "heat": 0.2,
-        "surface": "asphalt",
-    },
-    {
         "id": "milano_sanremo",
         "name": "Mailand – Sanremo",
         "race": "Monument",

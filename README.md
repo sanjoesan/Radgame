@@ -55,4 +55,3 @@ Echte Klassiker und Grand-Tour-Etappen, in einer fürs Game verkürzten Form:
 - **Tour de France:** Mont Ventoux, Alpe d'Huez, Col du Tourmalet, Col du Galibier
 - **Giro d'Italia:** Stelvio, Mortirolo, Zoncolan
 - **Vuelta a España:** Alto de l'Angliru
-- **Heimstrecke:** Garsten (Tutorial)

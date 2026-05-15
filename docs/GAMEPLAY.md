@@ -1,77 +1,117 @@
 # Gameplay-Mechaniken
 
-Stand: MVP. Werte siehe Konstanten oben in `main.py`.
+Stand: nach „GodMode"-Update. Werte stehen als Konstanten oben in `main.py`.
+
+## Strecke
+
+- **Breite:** `ROAD_WIDTH = 220` Pixel. Schmal genug, dass man auf 10+ Gegnern richtig drum kämpft.
+- **Kurven:** `road_curve(distance)` ist eine Überlagerung von drei Sinus-Schwingungen (große, mittlere und enge Schwünge). Die Straßen-Mittellinie schlängelt sich also durch die Welt.
+- Die Spielfigur ist auf dem Bildschirm fixiert in der Mitte. Die Welt wandert unter ihr durch. Steht man zu weit vom Road-Center, ist man auf der Wiese.
+- **Wiese:** `target_speed` wird auf 24 km/h gecappt und nochmal mit Faktor `(1 − 0.6·dt)` runtergedrückt. Ein paar Sekunden Wiese vernichten Position.
 
 ## Geschwindigkeit
 
-- Spielbare Range: `MIN_SPEED=8` … `MAX_SPEED=58` km/h.
-- Player hat `speed` (aktuell) und `target_speed` (anvisiert). `speed` nähert sich `target_speed` mit einem leichten Lag (~ ein paar Zehntel Sekunden), das gibt Trägheit.
-- Ohne Input zerfällt `target_speed` Richtung 24 km/h (rollendes Tempo).
-- Bei Energie ≤ 0 wird `target_speed` auf maximal 14 km/h gecappt — Erschöpfung.
+- `MIN_SPEED=8` … `MAX_SPEED_BASE=56` km/h (plus Frame-/Rad-Bonus).
+- Player hat `speed` und `target_speed`. Smoothing-Faktor 2.8 → halb so langsam wie Echtzeit.
+- Ohne Input zerfällt `target_speed` Richtung 24 km/h.
+- Bei Energie ≤ 0 ist `target_speed` auf 14 km/h gedeckelt.
 
 ## Energie
 
-- Max `MAX_ENERGY=100`, Drain pro Sekunde:
+- Maximum: `BASE_MAX_ENERGY = 100`, plus `(level - 1) * 8` durch Aufstieg.
+- Drain pro Sekunde:
   ```
-  drain = 0.35 + max(0, (speed - 22) / 18)^2 * 3.4
+  drain = 0.30 + max(0, (speed - 22) / 18)^2 * 3.0
   drain *= 1 + heat * 0.6
+  drain *= drain_mult (Equipment)
   ```
-- Bei 22 km/h: ~0.35 Energie/s, ohne Hitze. Reicht ewig.
-- Bei 50 km/h: ~5 Energie/s. 100 Energie verbraucht in ~20 s.
-- Hitze multipliziert nochmal: Mont Ventoux (heat 0.8) → +48 %.
+- **Passive Regeneration:** wenn nicht beschleunigt wird und nicht auf der Wiese:
+  ```
+  regen = 1.6 * max(0.1, 1 - speed/50)
+  ```
+  Bei niedriger Geschwindigkeit füllt sich also langsam wieder auf. Bei Vollgas regeneriert nichts.
 
 ## Wasser
 
-- 3 Flaschen zu Beginn. Eine Leertaste = +32 Energie, –1 Flasche.
-- Energie wird auf max 100 gecappt; trinken ohne Bedarf wird ignoriert (Flasche bleibt voll).
+- `WATER_BOTTLES_BASE = 3`, plus Bottle-Item-Upgrade (4 oder 5).
+- Leertaste = 1 Flasche × `DRINK_AMOUNT = 32` Energie. Nur, wenn nicht voll.
+
+## Goodies (Pickups)
+
+Spawnen mit 55–130 m Abstand am Straßenrand:
+
+| Typ      | Effekt                                          |
+|----------|-------------------------------------------------|
+| 💧 Flasche | +1 Trinkflasche (gecappt am Max)              |
+| 🍯 Gel    | +30 Energie sofort                              |
+| 🍫 Riegel | +15 Energie, +3 km/h Speed-Boost                |
 
 ## Lenken & Wind
 
-- Player lenkt mit `±230 px/s` auf der Straße.
-- Wind (`route.wind` 0..1) erzeugt sinusförmige Seitendrift, die der Fahrer durch Gegenlenken ausgleichen muss. Bei `wind ≥ 0.5` deutlich spürbar.
+- Lenken `±240 px/s`.
+- Wind erzeugt sinusförmige Seitendrift, deren Stärke mit `route.wind` * (1 − wind_resist) skaliert. Aero-Helm/-Rahmen helfen.
 
 ## Hindernisse
 
-Zwei Typen, zufällig auf der Strecke vorgelagert (`spawn_obstacles_ahead`):
+| Typ        | Effekt                                          |
+|------------|-------------------------------------------------|
+| Schlagloch | `target_speed *= 0.45`, –3 Energie, 0.5 s Schock |
+| Ast        | `target_speed *= 0.75`, –8 Energie, 0.3 s Schock |
 
-| Typ        | Effekt bei Kontakt                                |
-|------------|---------------------------------------------------|
-| Schlagloch | `target_speed *= 0.45`, `speed *= 0.55`, –3 Energie, 0.5 s Erholzeit |
-| Ast        | `target_speed *= 0.75`, `speed *= 0.8`, –8 Energie, 0.3 s Erholzeit  |
-
-Spawn-Dichte hängt vom Route-Feld `obstacle_density` ab. 1.0 = normal; Paris-Roubaix hat 1.6 (Kopfsteinpflaster simuliert als viele kleine Hindernisse).
+Spawn-Dichte per `route.obstacle_density`.
 
 ## Gegner
 
-- Pro Rennen `route.opponents` KI-Fahrer (3–7).
-- Jeder hat `target_speed` mit kleinem Random-Walk (`gauss(0, 1.5)` pro Sekunde).
-- Speed-Bereich pro Gegner: 16…46 km/h.
-- Jeder hat eine zufällige Trikot-/Helmfarbe.
-- Position des Spielers = Anzahl Gegner, deren `distance` höher ist, +1.
+- Mindestens 10 pro Rennen (Setting per Route, mit Floor von 10).
+- Jeder hat persönliche Lane-Preference (Offset von Mittellinie) und Speed-Bereich 16…48 km/h.
+- AI strebt zur (road_center + lane_pref), wobbelt leicht.
+- Position des Spielers = (Gegner mit größerer Distanz) + 1.
 
 ## Punktevergabe
 
-Nach jedem Rennen:
-
 ```
-total = opponents + 1
-platzierung = max(0, (total - position + 1) * 22)
-schwierigkeit = difficulty * 18
-punkte = platzierung + schwierigkeit
+total = opponents + 1                               # mind. 11
+placement = max(0, (total - position + 1) * 18)
+diff_bonus = difficulty * 22
+punkte = placement + diff_bonus
 ```
 
-- Sieg bei 8 Fahrern, ★5 Strecke: `8*22 + 5*18 = 266`.
-- Letzter Platz, ★1: `1*22 + 1*18 = 40` (Trostpreis fürs Fertigfahren).
+Beispiel: Sieg bei 11 Fahrern (10 Gegner), Stelvio ★5 → 11*18 + 5*22 = 198 + 110 = **308 Punkte**.
 
-## Zielgerade
+## Level
 
-Wenn der Player weniger als 30 m vom Ziel entfernt ist, wird ein Schachbrett-Banner gezeichnet, das mit der Welt heranscrollt.
+```
+Level 1: 0–199    (200 XP)
+Level 2: 200–499  (300 XP)
+Level 3: 500–899  (400 XP)
+Level 4: 900–1399 (500 XP)
+Level 5: 1400+    (600 XP)
+…
+```
 
-## Was noch nicht da ist (Stand jetzt)
+Pro Level: `+8` max Energie. Lvl 10 = 172 max Energie.
 
-- Oberflächen-Effekte: Cobbles (Vibration), Gravel (Driften) — Daten in Route gibt's, Mechanik noch nicht.
-- Upgrades: Punkte werden gespart, aber es gibt noch keinen Shop.
-- Wind als gerichtetes Phänomen (immer nur Seitenwind, kein Rückenwind/Gegenwind).
-- Höhenprofil: Strecken haben keinen Anstieg/Abfahrt-Effekt auf Speed.
+## Shop
 
-Siehe [ROADMAP.md](ROADMAP.md).
+Aufrufbar als oberster Eintrag im Hauptmenü. Items in 5 Kategorien:
+
+- **Trikot:** Optik (Klassik Rot, Sky Blau, Bergtrikot, Maillot Jaune, Maglia Rosa, Regenbogen)
+- **Helm:** Standard / Aero (wind_resist 0.3) / TT-Helm (wind_resist 0.5, +2 km/h)
+- **Räder:** Standard / Carbon (drain ×0.88, accel ×1.1) / Aero (drain ×0.92, +4 km/h)
+- **Rahmen:** Alu / Carbon (drain ×0.92, +3 km/h) / Climber (accel ×1.25, drain ×0.9) / Aero (+7 km/h, wind_resist 0.2)
+- **Flaschen:** 3 (default) / 4 (260 pt) / 5 (520 pt)
+
+Equipped-Items werden multiplikativ verrechnet (drain/accel) bzw. addiert (speed_bonus/wind_resist). Sehr fettes Setup ist erreichbar, aber nicht in einer Stunde — Level- und Punkte-Grind nötig.
+
+## Tuning-Stellschrauben
+
+In `main.py`:
+
+- `ROAD_WIDTH` — Straßenbreite
+- `road_curve()` — Kurven-Intensität
+- `STEER_SPEED` — Lenk-Reaktivität
+- `MAX_SPEED_BASE`, `BASE_MAX_ENERGY`
+- Goodie-Spawn-Gap (55–130 m)
+- Hindernis-Spawn-Gap (14–32 m / density)
+- Drain-Formel
+- Punkteformel und Level-Threshold (`level_from_points`)

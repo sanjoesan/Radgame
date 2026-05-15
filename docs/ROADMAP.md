@@ -2,36 +2,42 @@
 
 Aktueller Stand: MVP. Spielbar, ein Rennen pro Sitzung, 15 Strecken, Punkte werden gespeichert.
 
-## Done (Stand 2026-05-15)
+## Done
 
-- [x] Pygame-Setup, venv-Bootstrap-Script
-- [x] Top-Down-Spielfeld mit scrollender Straße
-- [x] Player mit Geschwindigkeits-/Energie-/Wasser-Mechanik
-- [x] Hindernisse (Schlagloch, Ast) mit unterschiedlichen Effekten
-- [x] KI-Gegner mit zufälliger Geschwindigkeit
-- [x] Live-Platzierung
-- [x] Punkte- und Bestplatzierungs-Persistenz (`save.json`)
-- [x] Menü mit Streckenwahl + Scrolling
-- [x] 15 echte Strecken (Monumente, Grand-Tour-Etappen)
-- [x] Doku (README, CLAUDE.md, ARCHITECTURE, GAMEPLAY, ROUTES, ROADMAP)
+**v0.1 (MVP, 2026-05-15)**
+- Pygame-Setup, venv-Bootstrap, Punkte-/Best-Persistenz
+- Top-Down-Spielfeld mit scrollender (gerader) Straße
+- Player mit Speed/Energie/Wasser, Hindernisse, KI-Gegner, Platzierung
+- 14 echte Strecken (Monumente, Grand-Tour-Etappen)
+- Doku-Set
+
+**v0.2 (GodMode, 2026-05-15)**
+- [x] Kurven (`road_curve()` mit drei Sinus-Layern)
+- [x] Schmälere Straße (220 px) für mehr Pulks im Feld
+- [x] Mindestens 10 Gegner pro Rennen
+- [x] Goodies (Flasche, Gel, Riegel) zum Aufsammeln
+- [x] Passive Energie-Regeneration im Coasting
+- [x] Level-System mit wachsendem max-Energy-Pool
+- [x] Shop mit Trikots, Helmen, Rädern, Rahmen und Flaschenoptionen — multiplikative + additive Stat-Modifikatoren
+- [x] Wiese / Off-Road-Penalty
+- [x] „Heimrunde Garsten" entfernt — Spiel startet direkt bei den großen Klassikern
 
 ## Als Nächstes (kurzfristig)
 
-- [ ] **Oberflächen-Effekte:** Cobbles → konstantes leichtes Rütteln (sideways jitter + minimaler Speed-Verlust), Gravel → größerer Lenk-Slip.
-- [ ] **Höhenprofil:** pro Strecke ein Profil [(distance_m, gradient_pct), …]. Bergauf kostet mehr Energie, bergab gibt Speed.
-- [ ] **Animierte Beine/Räder** am Player-Sprite, sodass man Geschwindigkeit auch visuell wahrnimmt.
-- [ ] **Sound:** Wind, Reifen, Trinken, Crash. Schon allein das macht enorm viel aus.
-- [ ] **Pausen-Menü** (Esc während Rennen → resume/quit).
+- [ ] **Oberflächen-Effekte:** Cobbles → leichtes Rütteln + Speed-Verlust, Gravel → Lenk-Slip.
+- [ ] **Höhenprofil:** pro Strecke ein Profil [(distance_m, gradient_pct), …]. Bergauf kostet mehr Energie, bergab Speed-Bonus.
+- [ ] **Animation** am Player-Sprite (Speichen-Blur, Pedal-Phase) für Geschwindigkeitsgefühl.
+- [ ] **Sound:** Wind, Reifen, Trinken, Crash, Goodie-Pickup.
+- [ ] **Pausen-Menü** (Esc → resume/quit statt direkt zurück).
+- [ ] **Goodies feinjustieren:** noch sind sie sehr generös; ggf. an Strecken-Hitze koppeln.
 
 ## Mittelfristig
 
-- [ ] **Upgrade-Shop:** zwischen Rennen Punkte ausgeben für:
-  - Rad: leichterer Rahmen (höhere Top-Speed), bessere Reifen (weniger Energieverlust bei Hindernissen)
-  - Bekleidung: Aero-Trikot (weniger Wind), helles Jersey (weniger Hitze-Drain)
-  - Trinkflaschenhalter (4. oder 5. Flasche)
-- [ ] **Wetter ist je Rennen variabel** (regnerisch → mehr Hindernisse, kalt → kein Hitze-Drain).
-- [ ] **Karriere-Modus:** Strecken stufenweise freischalten (z. B. erst Garsten, dann Monumente, dann Grand Tours).
+- [ ] **Wetter je Rennen variabel** (Regen → mehr Hindernisse, Kälte → kein Hitze-Drain, aber Eis-Risiko).
+- [ ] **Karriere-Modus:** Strecken stufenweise freischalten, Saisonstruktur.
 - [ ] **Mehrere Wertungen:** Tagessieg, Bergwertung, Punkte-Trikot.
+- [ ] **Live-Gegner-Anzeige am Streckenrand** (mini-Tabelle mit nächsten Verfolgern/Vorderen).
+- [ ] **Mehr Upgrades:** Schaltgruppe, Pedale, Lenker (jeweils mit eigenem Stat-Profil).
 
 ## Langfristig
 

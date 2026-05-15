@@ -38,7 +38,6 @@ Sortiert nach Schwierigkeit:
 
 | ★ | Strecke                       | Rennen                     | distance_m | Besonderheit          |
 |---|-------------------------------|----------------------------|------------|------------------------|
-| 1 | Heimrunde Garsten             | Trainingsfahrt              | 1600       | Tutorial               |
 | 2 | Mailand–Sanremo              | Monument                   | 3000       | Lang-flach             |
 | 3 | Strade Bianche               | Klassiker (Schotter)        | 3400       | Hitze, gravel          |
 | 3 | Ronde van Vlaanderen         | Monument                   | 3600       | Wind, cobbles          |
