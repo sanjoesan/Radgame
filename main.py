@@ -15,7 +15,8 @@ PLAYER_Y = 460
 PLAYER_W, PLAYER_H = 26, 48
 PX_PER_M = 25
 MIN_SPEED = 8
-MAX_SPEED_BASE = 56
+MAX_SPEED_BASE = 64
+EMPTY_ENERGY_SPEED = 20
 BASE_MAX_ENERGY = 100
 DRINK_AMOUNT = 32
 WATER_BOTTLES_BASE = 3
@@ -176,9 +177,9 @@ def compute_stats(save_data):
 
 def road_curve(distance):
     """World x offset (pixels) of road centerline at given world distance (meters)."""
-    return (math.sin(distance * 0.018) * 110
-            + math.sin(distance * 0.0055) * 60
-            + math.sin(distance * 0.045) * 28)
+    return (math.sin(distance * 0.032) * 130
+            + math.sin(distance * 0.010) * 70
+            + math.sin(distance * 0.080) * 34)
 
 
 def make_cyclist_sprite(jersey, helmet, secondary=None, w=PLAYER_W, h=PLAYER_H):
@@ -241,8 +242,8 @@ class Player:
         self.max_speed = MAX_SPEED_BASE + self.stats["max_speed_bonus"]
         self.distance = 0.0
         self.world_x = road_curve(0.0)
-        self.speed = 22.0
-        self.target_speed = 22.0
+        self.speed = 26.0
+        self.target_speed = 26.0
         self.energy = self.max_energy
         self.water = self.max_bottles
         self.crashed_timer = 0.0
@@ -284,14 +285,14 @@ class Player:
             self.target_speed = max(MIN_SPEED, self.target_speed - 26 * dt)
         elif accel and self.energy > 0:
             self.target_speed = min(self.max_speed,
-                                    self.target_speed + 11 * dt * self.stats["accel_mult"])
+                                    self.target_speed + 14 * dt * self.stats["accel_mult"])
         elif brake:
-            self.target_speed = max(MIN_SPEED, self.target_speed - 14 * dt)
+            self.target_speed = max(MIN_SPEED, self.target_speed - 16 * dt)
         else:
-            self.target_speed += (24 - self.target_speed) * 0.4 * dt
+            self.target_speed += (28 - self.target_speed) * 0.4 * dt
 
         if self.energy <= 0:
-            self.target_speed = min(self.target_speed, 14)
+            self.target_speed = min(self.target_speed, EMPTY_ENERGY_SPEED)
         if self.on_grass:
             self.target_speed = min(self.target_speed, 24)
             self.target_speed *= 1 - 0.6 * dt
@@ -322,7 +323,7 @@ class Player:
         self.on_grass = abs(off) > ROAD_WIDTH // 2 - PLAYER_W // 2
 
         base_drain = 0.30
-        over = max(0.0, (self.speed - 22) / 18)
+        over = max(0.0, (self.speed - 26) / 20)
         drain = base_drain + over ** 2 * 3.0
         drain *= 1.0 + route.get("heat", 0) * 0.6
         drain *= self.stats["drain_mult"]
@@ -350,7 +351,7 @@ class Opponent:
 
     def update(self, dt):
         self.target_speed += random.gauss(0, 1.4) * dt
-        self.target_speed = max(16, min(48, self.target_speed))
+        self.target_speed = max(20, min(56, self.target_speed))
         self.speed += (self.target_speed - self.speed) * 1.2 * dt
         self.distance += self.speed / 3.6 * dt
         target = road_curve(self.distance) + self.lane_pref
@@ -806,7 +807,7 @@ def run_race(screen, route, save_data, fonts):
     clock = pygame.time.Clock()
     player = Player(save_data)
     opp_count = max(10, route.get("opponents", 10))
-    base = 32 - route["difficulty"] * 1.0
+    base = 38 - route["difficulty"] * 1.0
     opponents = [Opponent(random.uniform(15, 90), base + random.uniform(-4, 8))
                  for _ in range(opp_count)]
     obstacles = []
