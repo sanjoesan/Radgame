@@ -151,6 +151,13 @@ def load_save():
     for d_id in default_owned():
         if d_id not in data["owned"]:
             data["owned"].append(d_id)
+    if "xp" not in data:
+        spent = 0
+        for iid in data["owned"]:
+            it = find_item(iid)
+            if it:
+                spent += it.get("cost", 0)
+        data["xp"] = data["points"] + spent
     return data
 
 
@@ -213,8 +220,8 @@ THEMES = {
         "grass":   (110, 160, 90),
         "road":    (75, 75, 85),
         "edge":    (230, 225, 200),
-        "decor":   ["palm", "bush"],
-        "decor_density": 0.35,
+        "decor":   ["palm", "palm", "bush", "bush", "oak", "rock_small"],
+        "decor_density": 0.85,
         "obstacles": [("pothole", 3), ("branch", 2)],
         "curve_mult": 0.5,
     },
@@ -222,8 +229,8 @@ THEMES = {
         "grass":   (60, 110, 60),
         "road":    (72, 72, 82),
         "edge":    (220, 220, 220),
-        "decor":   ["oak", "pine", "bush"],
-        "decor_density": 0.7,
+        "decor":   ["oak", "oak", "pine", "pine", "bush", "rock_small"],
+        "decor_density": 1.15,
         "obstacles": [("pothole", 3), ("branch", 3)],
         "curve_mult": 0.85,
     },
@@ -231,8 +238,8 @@ THEMES = {
         "grass":   (95, 120, 75),
         "road":    (130, 115, 95),
         "edge":    (190, 175, 150),
-        "decor":   ["oak", "bush"],
-        "decor_density": 0.55,
+        "decor":   ["oak", "oak", "bush", "bush", "rock_small", "pine"],
+        "decor_density": 0.9,
         "obstacles": [("pothole", 4), ("branch", 2)],
         "curve_mult": 0.75,
     },
@@ -240,8 +247,8 @@ THEMES = {
         "grass":   (135, 145, 80),
         "road":    (180, 160, 110),
         "edge":    (210, 190, 140),
-        "decor":   ["cypress", "bush"],
-        "decor_density": 0.6,
+        "decor":   ["cypress", "cypress", "bush", "oak", "rock_small", "rock_big"],
+        "decor_density": 1.0,
         "obstacles": [("pothole", 3), ("rock", 2), ("branch", 2)],
         "curve_mult": 0.95,
     },
@@ -249,8 +256,8 @@ THEMES = {
         "grass":   (95, 100, 85),
         "road":    (65, 65, 75),
         "edge":    (180, 180, 190),
-        "decor":   ["pine", "rock_big", "rock_small"],
-        "decor_density": 1.0,
+        "decor":   ["pine", "pine", "pine", "rock_big", "rock_big", "rock_small", "rock_small"],
+        "decor_density": 1.5,
         "obstacles": [("pothole", 2), ("rock", 3), ("branch", 1)],
         "curve_mult": 1.4,
     },
@@ -258,8 +265,8 @@ THEMES = {
         "grass":   (225, 230, 235),
         "road":    (80, 80, 90),
         "edge":    (240, 240, 245),
-        "decor":   ["pine_snow", "rock_big"],
-        "decor_density": 0.85,
+        "decor":   ["pine_snow", "pine_snow", "rock_big", "rock_big", "rock_small"],
+        "decor_density": 1.3,
         "obstacles": [("pothole", 2), ("rock", 3)],
         "curve_mult": 1.55,
     },
@@ -267,8 +274,8 @@ THEMES = {
         "grass":   (130, 105, 60),
         "road":    (75, 70, 75),
         "edge":    (215, 210, 200),
-        "decor":   ["oak_autumn", "bush_autumn", "pine"],
-        "decor_density": 0.8,
+        "decor":   ["oak_autumn", "oak_autumn", "bush_autumn", "bush_autumn", "pine", "rock_small"],
+        "decor_density": 1.2,
         "obstacles": [("pothole", 2), ("branch", 4)],
         "curve_mult": 0.95,
     },
@@ -414,6 +421,41 @@ def make_bush_sprite(autumn=False):
     return s
 
 
+SPECTATOR_COLORS = [
+    (220, 70, 70),
+    (90, 130, 220),
+    (240, 210, 60),
+    (60, 180, 110),
+    (235, 120, 180),
+    (240, 140, 50),
+]
+
+
+def make_spectator_sprite(shirt, arms_up):
+    s = pygame.Surface((12, 22), pygame.SRCALPHA)
+    skin = (225, 195, 160)
+    pants = (40, 50, 70)
+    shoes = (22, 22, 28)
+    hair = (60, 40, 25)
+    pygame.draw.rect(s, hair, (4, 0, 4, 2))
+    pygame.draw.rect(s, skin, (4, 2, 4, 3))
+    pygame.draw.rect(s, shirt, (3, 5, 6, 8))
+    pygame.draw.rect(s, pants, (3, 13, 6, 6))
+    pygame.draw.rect(s, shoes, (3, 19, 2, 2))
+    pygame.draw.rect(s, shoes, (7, 19, 2, 2))
+    if arms_up:
+        pygame.draw.rect(s, shirt, (1, 5, 2, 3))
+        pygame.draw.rect(s, shirt, (9, 5, 2, 3))
+        pygame.draw.rect(s, skin, (1, 0, 2, 5))
+        pygame.draw.rect(s, skin, (9, 0, 2, 5))
+    else:
+        pygame.draw.rect(s, shirt, (1, 5, 2, 3))
+        pygame.draw.rect(s, shirt, (9, 5, 2, 3))
+        pygame.draw.rect(s, skin, (1, 8, 2, 5))
+        pygame.draw.rect(s, skin, (9, 8, 2, 5))
+    return s
+
+
 def make_rock_decor_sprite(big=False):
     if big:
         s = pygame.Surface((30, 22), pygame.SRCALPHA)
@@ -426,6 +468,39 @@ def make_rock_decor_sprite(big=False):
     return s
 
 
+def make_puddle_sprite(w=44, h=20):
+    s = pygame.Surface((w, h), pygame.SRCALPHA)
+    pygame.draw.ellipse(s, (35, 55, 90, 210), (0, 0, w, h))
+    pygame.draw.ellipse(s, (75, 125, 195, 220), (3, 3, w - 6, h - 6))
+    pygame.draw.arc(s, (215, 235, 250), (10, 4, w - 20, h - 8), 0.3, 1.1, 1)
+    pygame.draw.arc(s, (180, 210, 240), (6, 9, w - 14, h - 12), 3.2, 4.0, 1)
+    return s
+
+
+def make_snowpatch_sprite(w=44, h=20):
+    s = pygame.Surface((w, h), pygame.SRCALPHA)
+    pygame.draw.ellipse(s, (215, 225, 235, 230), (0, 0, w, h))
+    pygame.draw.ellipse(s, (245, 248, 255, 245), (4, 3, w - 8, h - 6))
+    pygame.draw.circle(s, (255, 255, 255), (w // 3, h // 2), 2)
+    pygame.draw.circle(s, (255, 255, 255), (2 * w // 3, h // 2 - 1), 2)
+    return s
+
+
+def make_haybale_sprite():
+    s = pygame.Surface((38, 34), pygame.SRCALPHA)
+    pygame.draw.ellipse(s, (110, 80, 35), (1, 5, 36, 28))
+    pygame.draw.ellipse(s, (195, 160, 75), (3, 7, 32, 22))
+    pygame.draw.ellipse(s, (225, 195, 110), (6, 10, 24, 14))
+    cx, cy = 19, 18
+    for ang in (0.0, math.pi / 4, math.pi / 2, 3 * math.pi / 4):
+        x1 = cx + math.cos(ang) * 14
+        y1 = cy + math.sin(ang) * 10
+        x2 = cx - math.cos(ang) * 14
+        y2 = cy - math.sin(ang) * 10
+        pygame.draw.line(s, (155, 115, 45), (x1, y1), (x2, y2), 1)
+    return s
+
+
 def make_rock_obstacle_sprite():
     s = pygame.Surface((30, 22), pygame.SRCALPHA)
     pygame.draw.polygon(s, (95, 95, 100), [(2, 20), (6, 6), (22, 3), (28, 18), (24, 21)])
@@ -435,18 +510,25 @@ def make_rock_obstacle_sprite():
 
 
 def make_decor_sprites():
-    return {
-        "pine":       make_pine_sprite(),
-        "pine_snow":  make_pine_sprite(snow=True),
-        "oak":        make_oak_sprite(),
-        "oak_autumn": make_oak_sprite(autumn=True),
-        "palm":       make_palm_sprite(),
-        "cypress":    make_cypress_sprite(),
-        "bush":       make_bush_sprite(),
+    d = {
+        "pine":        make_pine_sprite(),
+        "pine_snow":   make_pine_sprite(snow=True),
+        "oak":         make_oak_sprite(),
+        "oak_autumn":  make_oak_sprite(autumn=True),
+        "palm":        make_palm_sprite(),
+        "cypress":     make_cypress_sprite(),
+        "bush":        make_bush_sprite(),
         "bush_autumn": make_bush_sprite(autumn=True),
-        "rock_big":   make_rock_decor_sprite(big=True),
-        "rock_small": make_rock_decor_sprite(big=False),
+        "rock_big":    make_rock_decor_sprite(big=True),
+        "rock_small":  make_rock_decor_sprite(big=False),
     }
+    for i, col in enumerate(SPECTATOR_COLORS):
+        d[f"spec_{i}_up"] = make_spectator_sprite(col, arms_up=True)
+        d[f"spec_{i}_dn"] = make_spectator_sprite(col, arms_up=False)
+    return d
+
+
+SPECTATOR_KINDS = [f"spec_{i}" for i in range(len(SPECTATOR_COLORS))]
 
 
 def make_star_sprite(filled=True, size=14):
@@ -572,7 +654,7 @@ class TouchPad:
 class Player:
     def __init__(self, save_data):
         self.stats = compute_stats(save_data)
-        lvl, _, _ = level_from_points(save_data.get("points", 0))
+        lvl, _, _ = level_from_points(save_data.get("xp", save_data.get("points", 0)))
         self.level = lvl
         self.max_energy = max_energy_for_level(lvl)
         self.max_bottles = self.stats["bottles"]
@@ -680,10 +762,11 @@ class Player:
 
 
 class Opponent:
-    def __init__(self, start_distance, base_speed):
+    def __init__(self, start_distance, base_speed, top_speed=56):
         self.distance = start_distance
         self.target_speed = base_speed
         self.speed = base_speed
+        self.top_speed = top_speed
         self.lane_pref = random.uniform(-ROAD_WIDTH // 2 + 22, ROAD_WIDTH // 2 - 22)
         self.world_x = road_curve(start_distance) + self.lane_pref
         self.jersey = (random.randint(40, 230), random.randint(40, 230), random.randint(40, 230))
@@ -693,7 +776,7 @@ class Opponent:
 
     def update(self, dt):
         self.target_speed += random.gauss(0, 1.4) * dt
-        self.target_speed = max(20, min(56, self.target_speed))
+        self.target_speed = max(20, min(self.top_speed, self.target_speed))
         self.speed += (self.target_speed - self.speed) * 1.2 * dt
         self.distance += self.speed / 3.6 * dt
         target = road_curve(self.distance) + self.lane_pref
@@ -725,6 +808,100 @@ class Decor:
         self.kind = kind
 
 
+class HayBale:
+    """Rollt quer über die Straße. world_x interpoliert über duration von
+    start_x zu end_x, sodass der Ballen mittig auf der Strecke ist, wenn der
+    Spieler distance erreicht."""
+
+    def __init__(self, distance, start_x, end_x, duration):
+        self.distance = distance
+        self.start_x = start_x
+        self.end_x = end_x
+        self.duration = max(0.5, duration)
+        self.elapsed = 0.0
+        self.spin = 0.0
+        self.hit = False
+
+    @property
+    def world_x(self):
+        t = max(0.0, min(1.0, self.elapsed / self.duration))
+        return self.start_x + (self.end_x - self.start_x) * t
+
+    @property
+    def alive(self):
+        return self.elapsed < self.duration + 0.6
+
+    def update(self, dt):
+        self.elapsed += dt
+        direction = 1 if self.end_x > self.start_x else -1
+        self.spin += dt * 7 * direction
+
+
+def init_weather_particles(weather, strong_wind):
+    rain, snow, wind = [], [], []
+    if weather == "rain":
+        for _ in range(140):
+            rain.append({
+                "x": random.uniform(0, W + 200),
+                "y": random.uniform(-H, H),
+                "vy": random.uniform(760, 900),
+                "len": random.randint(10, 16),
+            })
+    elif weather == "snow":
+        for _ in range(90):
+            snow.append({
+                "x": random.uniform(0, W),
+                "y": random.uniform(-H, H),
+                "phase": random.uniform(0, math.tau),
+                "drift": random.uniform(18, 46),
+                "vy": random.uniform(55, 95),
+                "r": random.randint(1, 2),
+            })
+    if strong_wind:
+        for _ in range(26):
+            wind.append({
+                "x": random.uniform(-100, W),
+                "y": random.uniform(0, H - 130),
+                "len": random.randint(28, 64),
+            })
+    return rain, snow, wind
+
+
+def update_weather_particles(rain, snow, wind, dt):
+    for r in rain:
+        r["y"] += r["vy"] * dt
+        r["x"] -= 220 * dt
+        if r["y"] > H + 20:
+            r["y"] -= H + 40
+            r["x"] = random.uniform(0, W + 200)
+        if r["x"] < -30:
+            r["x"] += W + 60
+    for fl in snow:
+        fl["phase"] += dt * 1.6
+        fl["y"] += fl["vy"] * dt
+        fl["x"] += math.sin(fl["phase"]) * fl["drift"] * dt
+        if fl["y"] > H + 10:
+            fl["y"] -= H + 30
+            fl["x"] = random.uniform(0, W)
+    for w in wind:
+        w["x"] += 460 * dt
+        if w["x"] > W + 80:
+            w["x"] -= W + 160
+            w["y"] = random.uniform(0, H - 130)
+
+
+def draw_weather_particles(screen, rain, snow, wind):
+    for r in rain:
+        pygame.draw.line(screen, (170, 195, 230),
+                         (r["x"], r["y"]), (r["x"] - 6, r["y"] + r["len"]), 1)
+    for w in wind:
+        pygame.draw.line(screen, (215, 225, 240),
+                         (w["x"], w["y"]), (w["x"] + w["len"], w["y"]), 1)
+    for fl in snow:
+        col = (240, 248, 255) if fl["r"] >= 2 else (220, 232, 248)
+        pygame.draw.circle(screen, col, (int(fl["x"]), int(fl["y"])), fl["r"])
+
+
 def player_position(player, opponents):
     ahead = sum(1 for o in opponents if o.distance > player.distance)
     return ahead + 1
@@ -753,12 +930,41 @@ def spawn_decor_ahead(player, decor, theme_data, next_distance):
     while next_distance < horizon:
         rc = road_curve(next_distance)
         side = random.choice([-1, 1])
-        offset = ROAD_WIDTH // 2 + random.randint(30, 180)
+        offset = ROAD_WIDTH // 2 + random.randint(28, 200)
         x = rc + side * offset
         kind = random.choice(kinds)
         decor.append(Decor(next_distance, x, kind))
-        gap = random.uniform(12, 40) / max(density, 0.15)
+        gap = random.uniform(10, 32) / max(density, 0.15)
         next_distance += gap
+    return next_distance
+
+
+def spawn_spectators_ahead(player, decor, next_distance):
+    """Zuschauer am Straßenrand. Dichter gepackt und näher dran als normale Deko,
+    oft in kleinen Gruppen."""
+    horizon = player.distance + 240
+    while next_distance < horizon:
+        rc = road_curve(next_distance)
+        side = random.choice([-1, 1])
+        group = random.randint(1, 4)
+        for _ in range(group):
+            offset = ROAD_WIDTH // 2 + random.randint(8, 28)
+            jitter_d = random.uniform(-1.5, 1.5)
+            jitter_x = random.uniform(-6, 6)
+            x = rc + side * offset + jitter_x
+            kind = random.choice(SPECTATOR_KINDS)
+            decor.append(Decor(next_distance + jitter_d, x, kind))
+        next_distance += random.uniform(14, 38)
+    return next_distance
+
+
+def spawn_weather_hazards_ahead(player, obstacles, next_distance, kind):
+    horizon = player.distance + 240
+    while next_distance < horizon:
+        rc = road_curve(next_distance)
+        x = rc + random.uniform(-ROAD_WIDTH // 2 + 18, ROAD_WIDTH // 2 - 18)
+        obstacles.append(Obstacle(next_distance, x, kind))
+        next_distance += random.uniform(35, 80)
     return next_distance
 
 
@@ -774,7 +980,7 @@ def spawn_goodies_ahead(player, goodies, next_distance):
     return next_distance
 
 
-OBSTACLE_REACH = {"pothole": 16, "branch": 18, "rock": 19}
+OBSTACLE_REACH = {"pothole": 16, "branch": 18, "rock": 19, "puddle": 20, "snowpatch": 20}
 
 
 def check_collisions(player, obstacles):
@@ -802,7 +1008,34 @@ def check_collisions(player, obstacles):
                     player.speed *= 0.5
                     player.crashed_timer = 0.55
                     player.energy = max(0, player.energy - 6)
-                player.flash_timer = 0.25
+                elif o.kind == "puddle":
+                    player.target_speed *= 0.86
+                    player.speed *= 0.92
+                    player.flash_timer = 0.15
+                elif o.kind == "snowpatch":
+                    player.target_speed *= 0.78
+                    player.speed *= 0.88
+                    player.flash_timer = 0.15
+                else:
+                    player.flash_timer = 0.25
+                if o.kind in ("pothole", "branch", "rock"):
+                    player.flash_timer = 0.25
+
+
+def check_haybales(player, bales):
+    half_w = PLAYER_W // 2
+    for b in bales:
+        if b.hit:
+            continue
+        dd = b.distance - player.distance
+        if -0.4 < dd < 0.9:
+            if abs(b.world_x - player.world_x) < half_w + 16:
+                b.hit = True
+                player.target_speed *= 0.28
+                player.speed *= 0.38
+                player.crashed_timer = 0.65
+                player.energy = max(0, player.energy - 7)
+                player.flash_timer = 0.3
 
 
 def check_goodies(player, goodies):
@@ -886,7 +1119,8 @@ def draw_player(screen, player, sprite):
         screen.blit(sprite, (x, y))
 
 
-def draw_hud(screen, player, position, total, distance_remaining, fonts, route, recent_pickup):
+def draw_hud(screen, player, position, total, distance_remaining, fonts, route, recent_pickup,
+             weather_label="", strong_wind=False):
     h = 116
     pygame.draw.rect(screen, HUD_BG, (0, H - h, W, h))
     pygame.draw.rect(screen, (40, 50, 70), (0, H - h, W, 2))
@@ -919,12 +1153,17 @@ def draw_hud(screen, player, position, total, distance_remaining, fonts, route, 
     screen.blit(lvl_text, (W - lvl_text.get_width() - 20, H - h + 74))
 
     cond_x = W // 2 - 80
-    if route.get("wind", 0) > 0.4:
+    if strong_wind:
+        screen.blit(fonts["small"].render("Sturm", True, ORANGE), (cond_x, H - h + 18))
+    elif route.get("wind", 0) > 0.4:
         screen.blit(fonts["small"].render("Wind", True, HUD_DIM), (cond_x, H - h + 18))
     if route.get("heat", 0) > 0.5:
         screen.blit(fonts["small"].render("Hitze", True, HUD_DIM), (cond_x, H - h + 40))
+    if weather_label:
+        col = BLUE if weather_label == "Regen" else WHITE
+        screen.blit(fonts["small"].render(weather_label, True, col), (cond_x, H - h + 62))
     if player.on_grass:
-        screen.blit(fonts["small"].render("WIESE!", True, ORANGE), (cond_x, H - h + 62))
+        screen.blit(fonts["small"].render("WIESE!", True, ORANGE), (cond_x, H - h + 84))
 
     if recent_pickup:
         kind, t = recent_pickup
@@ -998,7 +1237,7 @@ async def run_menu(screen, save_data, fonts):
         screen.fill((22, 26, 40))
         title = fonts["huge"].render("RADGAME", True, WHITE)
         screen.blit(title, (W // 2 - title.get_width() // 2, 20))
-        level, xp, need = level_from_points(save_data.get("points", 0))
+        level, xp, need = level_from_points(save_data.get("xp", 0))
         sub = fonts["small"].render(
             f"Level {level} · {xp}/{need} XP · max. Energie {max_energy_for_level(level)}",
             True, HUD_DIM,
@@ -1155,7 +1394,7 @@ async def run_shop(screen, save_data, fonts):
         screen.blit(title, (40, 20))
         pts = fonts["mid"].render(f"{save_data['points']} Punkte", True, WHITE)
         screen.blit(pts, (W - pts.get_width() - 40, 30))
-        level, _, _ = level_from_points(save_data["points"])
+        level, _, _ = level_from_points(save_data.get("xp", 0))
         lvl = fonts["small"].render(
             f"Level {level} · max Energie {max_energy_for_level(level)}",
             True, HUD_DIM,
@@ -1250,18 +1489,39 @@ async def run_race(screen, route, save_data, fonts):
     set_curve_amp_mult(theme_data["curve_mult"])
 
     player = Player(save_data)
-    opp_count = max(10, route.get("opponents", 10))
-    base = 38 - route["difficulty"] * 1.0
-    opponents = [Opponent(random.uniform(15, 90), base + random.uniform(-4, 8))
+    opp_count = 50
+    # Gegner skalieren mit der Spieler-Ausrüstung: bessere Räder/Rahmen/Helm
+    # erhöhen player.max_speed und damit auch das Gegner-Tempo und ihr Cap.
+    gear_bonus = player.stats["max_speed_bonus"]
+    base = 38 - route["difficulty"] * 1.0 + gear_bonus * 0.7
+    opp_top = 56 + gear_bonus * 0.8
+    opponents = [Opponent(random.uniform(15, 110),
+                          base + random.uniform(-4, 8),
+                          top_speed=opp_top)
                  for _ in range(opp_count)]
     obstacles = []
+    bales = []
     goodies = []
     decor = []
     next_obs_d = 50.0
+    next_hazard_d = 80.0
     next_goodie_d = 60.0
     next_decor_d = 30.0
+    next_spec_d = 25.0
+    next_bale_t = random.uniform(2.5, 6.0)
     spawn_density = route["obstacle_density"]
     distance_target = route["distance_m"]
+
+    theme_name = route.get("theme", "classic")
+    strong_wind = route.get("wind", 0) >= 0.55
+    if theme_name in ("mountain", "alpine") and random.random() < 0.45:
+        weather = "snow"
+    elif random.random() < 0.28:
+        weather = "rain"
+    else:
+        weather = "clear"
+    rain_particles, snow_particles, wind_particles = init_weather_particles(weather, strong_wind)
+    weather_label = {"rain": "Regen", "snow": "Schnee", "clear": ""}[weather]
 
     player_sprite = make_cyclist_sprite(
         player.stats["jersey_color"],
@@ -1269,10 +1529,13 @@ async def run_race(screen, route, save_data, fonts):
         player.stats["jersey_secondary"],
     )
     obstacle_sprites = {
-        "pothole": make_pothole_sprite(),
-        "branch":  make_branch_sprite(),
-        "rock":    make_rock_obstacle_sprite(),
+        "pothole":   make_pothole_sprite(),
+        "branch":    make_branch_sprite(),
+        "rock":      make_rock_obstacle_sprite(),
+        "puddle":    make_puddle_sprite(),
+        "snowpatch": make_snowpatch_sprite(),
     }
+    haybale_sprite = make_haybale_sprite()
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
 
@@ -1340,9 +1603,31 @@ async def run_race(screen, route, save_data, fonts):
             for o in opponents:
                 o.update(dt)
             next_obs_d = spawn_obstacles_ahead(player, obstacles, spawn_density, next_obs_d, theme_data)
+            if weather == "rain":
+                next_hazard_d = spawn_weather_hazards_ahead(player, obstacles, next_hazard_d, "puddle")
+            elif weather == "snow":
+                next_hazard_d = spawn_weather_hazards_ahead(player, obstacles, next_hazard_d, "snowpatch")
             next_goodie_d = spawn_goodies_ahead(player, goodies, next_goodie_d)
             next_decor_d = spawn_decor_ahead(player, decor, theme_data, next_decor_d)
+            next_spec_d = spawn_spectators_ahead(player, decor, next_spec_d)
+            if strong_wind:
+                next_bale_t -= dt
+                if next_bale_t <= 0:
+                    speed_mps = max(7.0, player.speed / 3.6)
+                    lead_t = random.uniform(2.0, 3.0)
+                    bd = player.distance + speed_mps * lead_t
+                    rc = road_curve(bd)
+                    side = random.choice([-1, 1])
+                    start_x = rc + side * (ROAD_WIDTH // 2 + 70)
+                    end_x = rc - side * (ROAD_WIDTH // 2 + 70)
+                    duration = lead_t * 2.0
+                    bales.append(HayBale(bd, start_x, end_x, duration))
+                    next_bale_t = random.uniform(4.5, 9.0)
+            for b in bales:
+                b.update(dt)
+            update_weather_particles(rain_particles, snow_particles, wind_particles, dt)
             check_collisions(player, obstacles)
+            check_haybales(player, bales)
             picked = check_goodies(player, goodies)
             if picked:
                 recent_pickup = picked[-1]
@@ -1351,6 +1636,7 @@ async def run_race(screen, route, save_data, fonts):
             goodies[:] = [g for g in goodies
                           if not g.collected and g.distance > player.distance - 8]
             decor[:] = [d for d in decor if d.distance > player.distance - 8]
+            bales[:] = [b for b in bales if b.alive and b.distance > player.distance - 8]
             if player.distance >= distance_target:
                 state = "finished"
                 final_position = player_position(player, opponents)
@@ -1360,12 +1646,13 @@ async def run_race(screen, route, save_data, fonts):
                 diff_bonus = route["difficulty"] * 22
                 awarded = placement + diff_bonus
                 save_data["points"] = save_data.get("points", 0) + awarded
+                save_data["xp"] = save_data.get("xp", 0) + awarded
                 save_data["races"] = save_data.get("races", 0) + 1
                 best = save_data.setdefault("best", {})
                 rid = route["id"]
                 if rid not in best or final_position < best[rid]:
                     best[rid] = final_position
-                new_lvl, _, _ = level_from_points(save_data["points"])
+                new_lvl, _, _ = level_from_points(save_data["xp"])
                 if new_lvl > prev_level:
                     level_up = True
                 save_state(save_data)
@@ -1373,8 +1660,14 @@ async def run_race(screen, route, save_data, fonts):
         recent_pickup_t = max(0.0, recent_pickup_t - dt)
 
         draw_road(screen, player, theme_data)
+        anim_t = pygame.time.get_ticks() / 220.0
         for d in sorted(decor, key=lambda x: x.distance, reverse=True):
-            draw_world_obj(screen, d.distance, d.world_x, decor_sprites[d.kind], player)
+            if d.kind.startswith("spec_"):
+                frame = "_up" if (math.sin(anim_t + d.distance * 0.7) > 0) else "_dn"
+                spr = decor_sprites[d.kind + frame]
+            else:
+                spr = decor_sprites[d.kind]
+            draw_world_obj(screen, d.distance, d.world_x, spr, player)
         for o in sorted(opponents, key=lambda x: x.distance):
             draw_world_obj(screen, o.distance, o.world_x, o.sprite, player)
         for o in obstacles:
@@ -1384,13 +1677,18 @@ async def run_race(screen, route, save_data, fonts):
                 bob = math.sin(pygame.time.get_ticks() / 200 + g.distance) * 2
                 draw_world_obj(screen, g.distance, g.world_x, goodie_sprites[g.kind],
                                player, y_jitter=bob)
+        for b in bales:
+            rotated = pygame.transform.rotate(haybale_sprite, math.degrees(b.spin))
+            draw_world_obj(screen, b.distance, b.world_x, rotated, player)
         draw_finish_line(screen, player, distance_target)
         draw_player(screen, player, player_sprite)
+        draw_weather_particles(screen, rain_particles, snow_particles, wind_particles)
 
         pos = player_position(player, opponents)
         remaining = max(0, distance_target - player.distance)
         rp = (recent_pickup, recent_pickup_t) if recent_pickup else None
-        draw_hud(screen, player, pos, len(opponents) + 1, remaining, fonts, route, rp)
+        draw_hud(screen, player, pos, len(opponents) + 1, remaining, fonts, route, rp,
+                 weather_label=weather_label, strong_wind=strong_wind)
 
         if state == "racing":
             touch.draw(screen, fonts["mid"],
@@ -1409,7 +1707,7 @@ async def run_race(screen, route, save_data, fonts):
             screen.blit(time_s, (W // 2 - time_s.get_width() // 2, 210))
             pts = fonts["mid"].render(f"+{awarded} Punkte", True, YELLOW)
             screen.blit(pts, (W // 2 - pts.get_width() // 2, 250))
-            new_lvl, xp, need = level_from_points(save_data["points"])
+            new_lvl, xp, need = level_from_points(save_data["xp"])
             lvl = fonts["small"].render(f"Level {new_lvl} · {xp}/{need} XP", True, HUD_DIM)
             screen.blit(lvl, (W // 2 - lvl.get_width() // 2, 290))
             if level_up:
