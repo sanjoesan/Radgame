@@ -1752,9 +1752,12 @@ async def run_race(screen, route, save_data, fonts):
                 final_position = player_position(player, opponents)
                 final_time = elapsed
                 total = len(opponents) + 1
-                placement = max(0, (total - final_position + 1) * 18)
-                diff_bonus = route["difficulty"] * 22
-                awarded = placement + diff_bonus
+                # Prozentrang statt linearer Skala mit Gegnerzahl, sonst
+                # geben 50 Gegner viel zu viele Punkte. Steile Kurve, damit
+                # Mid-Pack deutlich weniger als ein Sieg gibt.
+                pct = (total - final_position) / max(1, total - 1)
+                base = 50 + route["difficulty"] * 22
+                awarded = max(5, int(pct ** 1.4 * base))
                 save_data["points"] = save_data.get("points", 0) + awarded
                 save_data["xp"] = save_data.get("xp", 0) + awarded
                 save_data["races"] = save_data.get("races", 0) + 1
