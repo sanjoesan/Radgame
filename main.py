@@ -44,7 +44,25 @@ BROWN_DARK = (75, 50, 25)
 PINK = (235, 120, 180)
 CYAN = (80, 220, 220)
 
-SAVE_FILE = Path("/tmp/radgame_save.json") if IS_WEB else Path(__file__).parent / "save.json"
+SAVE_FILE = Path(__file__).parent / "save.json"
+WEB_SAVE_KEY = "radgame_save_v1"
+
+
+def _web_storage_get():
+    try:
+        from js import localStorage  # type: ignore
+        raw = localStorage.getItem(WEB_SAVE_KEY)
+        return None if raw is None else str(raw)
+    except Exception:
+        return None
+
+
+def _web_storage_set(payload):
+    try:
+        from js import localStorage  # type: ignore
+        localStorage.setItem(WEB_SAVE_KEY, payload)
+    except Exception:
+        pass
 
 SHOP_ITEMS = [
     {"id": "jersey_red",    "type": "jersey", "name": "Klassik Rot",       "color": (220, 50, 50),   "cost": 0,   "default": True},
@@ -107,9 +125,17 @@ def default_owned():
 
 def load_save():
     data = {}
-    if SAVE_FILE.exists():
+    raw = None
+    if IS_WEB:
+        raw = _web_storage_get()
+    elif SAVE_FILE.exists():
         try:
-            data = json.loads(SAVE_FILE.read_text())
+            raw = SAVE_FILE.read_text()
+        except Exception:
+            raw = None
+    if raw:
+        try:
+            data = json.loads(raw)
         except Exception:
             data = {}
     data.setdefault("points", 0)
@@ -129,7 +155,11 @@ def load_save():
 
 
 def save_state(state):
-    SAVE_FILE.write_text(json.dumps(state, indent=2))
+    payload = json.dumps(state, indent=2)
+    if IS_WEB:
+        _web_storage_set(payload)
+    else:
+        SAVE_FILE.write_text(payload)
 
 
 def level_from_points(points):
@@ -1246,17 +1276,18 @@ async def run_race(screen, route, save_data, fonts):
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
 
-    btn = 100
+    btn_h = 100
+    side_w = 150
+    accel_w = 220
     gap = 12
-    pad_y = H - 116 - 16 - btn
+    pad_y = H - 116 - 16 - btn_h
     touch = TouchPad([
-        {"key": "left",  "rect": pygame.Rect(20, pad_y, btn, btn),                       "icon":  "left"},
-        {"key": "right", "rect": pygame.Rect(20 + btn + gap, pad_y, btn, btn),           "icon":  "right"},
-        {"key": "brake", "rect": pygame.Rect(W - 20 - 2 * btn - gap, pad_y, btn, btn),   "icon":  "down"},
-        {"key": "accel", "rect": pygame.Rect(W - 20 - btn, pad_y, btn, btn),             "icon":  "up"},
-        {"key": "drink", "rect": pygame.Rect(20, pad_y - 56, 2 * btn + gap, 48),         "label": "TRINK"},
-        {"key": "esc",   "rect": pygame.Rect(W - 100, 10, 90, 40),                       "label": "Esc"},
-        {"key": "menu",  "rect": pygame.Rect(W // 2 - 130, 410, 260, 64),                "label": "Zurück"},
+        {"key": "left",  "rect": pygame.Rect(20, pad_y, side_w, btn_h),                    "icon":  "left"},
+        {"key": "right", "rect": pygame.Rect(20 + side_w + gap, pad_y, side_w, btn_h),     "icon":  "right"},
+        {"key": "accel", "rect": pygame.Rect(W - 20 - accel_w, pad_y, accel_w, btn_h),     "icon":  "up"},
+        {"key": "drink", "rect": pygame.Rect(20, pad_y - 56, 2 * side_w + gap, 48),        "label": "TRINK"},
+        {"key": "esc",   "rect": pygame.Rect(W - 100, 10, 90, 40),                         "label": "Esc"},
+        {"key": "menu",  "rect": pygame.Rect(W // 2 - 130, 410, 260, 64),                  "label": "Zurück"},
     ])
 
     elapsed = 0.0
@@ -1363,7 +1394,7 @@ async def run_race(screen, route, save_data, fonts):
 
         if state == "racing":
             touch.draw(screen, fonts["mid"],
-                       only={"left", "right", "accel", "brake", "drink", "esc"})
+                       only={"left", "right", "accel", "drink", "esc"})
 
         if state == "finished":
             overlay = pygame.Surface((W, H), pygame.SRCALPHA)
