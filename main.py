@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v14"
+VERSION = "v15"
 
 
 def _detect_touch():
@@ -267,6 +267,10 @@ def load_save():
     data.setdefault("difficulty", "medium")
     if data["difficulty"] not in DIFFICULTY_ORDER:
         data["difficulty"] = "medium"
+    data.setdefault("music_muted", False)
+    data.setdefault("music_volume", DEFAULT_VOLUME_KEY)
+    if data["music_volume"] not in VOLUME_ORDER:
+        data["music_volume"] = DEFAULT_VOLUME_KEY
     data.setdefault("owned", default_owned())
     data.setdefault("equipped", default_equipped())
     for t in ITEM_TYPES:
@@ -293,11 +297,12 @@ MUSIC_SAMPLE_RATE = 22050
 
 # Frequenzen fuer 12-Ton-Equal-Temperament. Octave-Bezeichnung: Mittel-C = C4.
 _NOTE_FREQS = {
-    "C3": 130.81, "D3": 146.83, "Eb3": 155.56, "E3": 164.81, "F3": 174.61,
+    "A2": 110.00, "B2": 123.47,
+    "C3": 130.81, "D3": 146.83, "E3": 164.81, "F3": 174.61,
     "G3": 196.00, "A3": 220.00, "B3": 246.94,
-    "C4": 261.63, "D4": 293.66, "Eb4": 311.13, "E4": 329.63, "F4": 349.23,
+    "C4": 261.63, "D4": 293.66, "E4": 329.63, "F4": 349.23,
     "G4": 392.00, "A4": 440.00, "B4": 493.88,
-    "C5": 523.25, "D5": 587.33, "Eb5": 622.25, "E5": 659.25, "F5": 698.46,
+    "C5": 523.25, "D5": 587.33, "E5": 659.25, "F5": 698.46,
     "G5": 783.99, "A5": 880.00, "B5": 987.77, "C6": 1046.50,
     "-": 0.0,
 }
@@ -340,14 +345,17 @@ def _synth_voice(notes, sample_rate, wave="square", volume=0.22):
 
 
 def _generate_chiptune_loop(sample_rate=MUSIC_SAMPLE_RATE):
-    """Baut den Loop einmal als raw PCM-Bytes. 4 Takte C-Dur / F-Dur / G7 — flott
-    und einpraegsam ohne anstrengend zu sein."""
+    """Baut den Loop einmal als raw PCM-Bytes. 8 Takte — zwei Phrasen:
+    Phrase A in C-Dur mit aufsteigenden Arpeggien, Phrase B in vi-IV-I-V
+    (Am-F-C-G) mit ruhigerer Melodielinie und walzendem Bass. ~105 BPM
+    fuer entspanntes Cruisen."""
     import array
     sr = sample_rate
-    b = 0.21  # Sekunden pro Beat (~140 BPM)
-    h = b / 2  # Achtel
-    # 4-Takt-Lead (Square Wave) ueber C, F, G, C
-    lead = [
+    b = 0.28        # Beat-Laenge (~105 BPM)
+    h = b / 2       # Achtel
+
+    # === Phrase A (4 Takte) — Lead steigt arpeggierend an ===
+    lead_a = [
         ("G4", h), ("C5", h), ("E5", h), ("G5", h),
         ("E5", h), ("C5", h), ("E5", b),
         ("A4", h), ("D5", h), ("F5", h), ("A5", h),
@@ -357,13 +365,35 @@ def _generate_chiptune_loop(sample_rate=MUSIC_SAMPLE_RATE):
         ("G4", h), ("B4", h), ("D5", h), ("F5", h),
         ("E5", h), ("D5", h), ("C5", b),
     ]
-    # Bass (Triangle Wave) — klassische I-ii-IV-V-Progression in C-Dur
-    bass = [
+    bass_a = [
         ("C3", b), ("G3", b), ("C3", b), ("G3", b),  # C
         ("D3", b), ("A3", b), ("D3", b), ("A3", b),  # Dm
         ("F3", b), ("C3", b), ("F3", b), ("C3", b),  # F
-        ("G3", b), ("D3", b), ("G3", b), ("B3", b),  # G7 → resolves
+        ("G3", b), ("D3", b), ("G3", b), ("B3", b),  # G7
     ]
+
+    # === Phrase B (4 Takte) — laengere Melodie, walking bass ===
+    lead_b = [
+        ("E5", b), ("C5", h), ("A4", h), ("C5", b), ("E5", b),         # Am
+        ("F5", b), ("E5", h), ("D5", h), ("C5", b), ("A4", b),         # F
+        ("G4", h), ("C5", h), ("E5", b), ("G5", h), ("E5", h), ("C5", b),  # C
+        ("G4", h), ("B4", h), ("D5", b), ("F5", h), ("D5", h), ("B4", b),  # G7
+    ]
+    # Walking bass mit Achteln — gibt der zweiten Haelfte mehr Schwung.
+    bass_b = [
+        ("A2", h), ("C3", h), ("E3", h), ("C3", h),
+        ("A2", h), ("C3", h), ("E3", h), ("G3", h),
+        ("F3", h), ("A3", h), ("C4", h), ("A3", h),
+        ("F3", h), ("A3", h), ("C4", h), ("E4", h),
+        ("C3", h), ("E3", h), ("G3", h), ("E3", h),
+        ("C3", h), ("E3", h), ("G3", h), ("C4", h),
+        ("G3", h), ("B3", h), ("D4", h), ("B3", h),
+        ("G3", h), ("B3", h), ("D4", h), ("F4", h),
+    ]
+
+    lead = lead_a + lead_b
+    bass = bass_a + bass_b
+
     lead_s = _synth_voice(lead, sr, "square", volume=0.22)
     bass_s = _synth_voice(bass, sr, "triangle", volume=0.28)
     n_total = max(len(lead_s), len(bass_s))
@@ -389,7 +419,40 @@ def _generate_chiptune_loop(sample_rate=MUSIC_SAMPLE_RATE):
 _MUSIC_STATE = {"sound": None, "muted": False}
 
 
-def music_init():
+VOLUME_LEVELS = [
+    ("leise",  "Leise",  0.16),
+    ("mittel", "Mittel", 0.32),
+    ("laut",   "Laut",   0.48),
+]
+VOLUME_ORDER = [k for k, _, _ in VOLUME_LEVELS]
+DEFAULT_VOLUME_KEY = "mittel"
+
+
+def _volume_value(key):
+    for k, _, v in VOLUME_LEVELS:
+        if k == key:
+            return v
+    return 0.32
+
+
+def _volume_label(key):
+    for k, label, _ in VOLUME_LEVELS:
+        if k == key:
+            return label
+    return "Mittel"
+
+
+def _apply_music_volume(save_data):
+    snd = _MUSIC_STATE.get("sound")
+    if not snd:
+        return
+    if _MUSIC_STATE.get("muted"):
+        snd.set_volume(0.0)
+    else:
+        snd.set_volume(_volume_value(save_data.get("music_volume", DEFAULT_VOLUME_KEY)))
+
+
+def music_init(save_data):
     """Versucht pygame.mixer zu initialisieren und den Loop zu erzeugen. Schluckt
     Fehler — ohne Sound spielt das Spiel trotzdem."""
     try:
@@ -400,24 +463,39 @@ def music_init():
         actual_sr = info[0] if info else MUSIC_SAMPLE_RATE
         raw = _generate_chiptune_loop(actual_sr)
         snd = pygame.mixer.Sound(buffer=raw)
-        snd.set_volume(0.35)
         _MUSIC_STATE["sound"] = snd
+        _MUSIC_STATE["muted"] = bool(save_data.get("music_muted", False))
+        _apply_music_volume(save_data)
         snd.play(loops=-1)
     except Exception as exc:
         print(f"Musik-Init fehlgeschlagen: {exc}")
         _MUSIC_STATE["sound"] = None
 
 
-def music_toggle_mute():
-    snd = _MUSIC_STATE["sound"]
-    if not snd:
-        return
+def music_toggle_mute(save_data):
     _MUSIC_STATE["muted"] = not _MUSIC_STATE["muted"]
-    snd.set_volume(0.0 if _MUSIC_STATE["muted"] else 0.35)
+    save_data["music_muted"] = _MUSIC_STATE["muted"]
+    save_state(save_data)
+    _apply_music_volume(save_data)
+
+
+def music_cycle_volume(save_data):
+    cur = save_data.get("music_volume", DEFAULT_VOLUME_KEY)
+    if cur not in VOLUME_ORDER:
+        cur = DEFAULT_VOLUME_KEY
+    nxt = VOLUME_ORDER[(VOLUME_ORDER.index(cur) + 1) % len(VOLUME_ORDER)]
+    save_data["music_volume"] = nxt
+    save_state(save_data)
+    _apply_music_volume(save_data)
+    return nxt
 
 
 def music_is_muted():
     return _MUSIC_STATE["muted"]
+
+
+def music_volume_label(save_data):
+    return _volume_label(save_data.get("music_volume", DEFAULT_VOLUME_KEY))
 
 
 def save_state(state):
@@ -2401,16 +2479,23 @@ async def run_menu(screen, save_data, fonts):
     clock = pygame.time.Clock()
     cursor = 0
     row_h = 64
-    # Layout: 0 = Schwierigkeit, 1 = Shop, 2..N+1 = Routen.
-    options_count = len(ROUTES) + 2
+    # Layout: 0 = Musik, 1 = Lautstaerke, 2 = Schwierigkeit, 3 = Shop,
+    # 4..N+3 = Routen.
+    options_count = len(ROUTES) + 4
 
     def activate(idx):
         if idx == 0:
-            cycle_difficulty(save_data)
+            music_toggle_mute(save_data)
             return None
         if idx == 1:
+            music_cycle_volume(save_data)
+            return None
+        if idx == 2:
+            cycle_difficulty(save_data)
+            return None
+        if idx == 3:
             return ("shop", None)
-        return ("race", ROUTES[idx - 2])
+        return ("race", ROUTES[idx - 4])
 
     def build_layout():
         list_x = 20
@@ -2451,10 +2536,15 @@ async def run_menu(screen, save_data, fonts):
                     result = activate(cursor)
                     if result is not None:
                         return result
-                if event.key in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_a, pygame.K_d) and cursor == 0:
-                    cycle_difficulty(save_data)
+                if event.key in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_a, pygame.K_d):
+                    if cursor == 0:
+                        music_toggle_mute(save_data)
+                    elif cursor == 1:
+                        music_cycle_volume(save_data)
+                    elif cursor == 2:
+                        cycle_difficulty(save_data)
                 if event.key == pygame.K_m:
-                    music_toggle_mute()
+                    music_toggle_mute(save_data)
             touch.handle_event(event)
             tap = event_tap_pos(event)
             if tap is not None:
@@ -2504,6 +2594,25 @@ async def run_menu(screen, save_data, fonts):
             sel = (i == cursor)
             row_rects.append((i, pygame.Rect(list_x, y, list_w, row_h - 6)))
             if i == 0:
+                bg = (45, 55, 60) if sel else (28, 36, 42)
+                pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
+                if sel:
+                    pygame.draw.rect(screen, GREEN, (list_x, y, list_w, row_h - 6), 2, border_radius=10)
+                state_lbl = "Aus" if music_is_muted() else "An"
+                name = fonts["mid"].render(f"Musik: {state_lbl}", True, GREEN)
+                screen.blit(name, (list_x + 14, y + 4))
+                desc = fonts["small"].render("Tap / Enter / M: an- und ausschalten", True, HUD_DIM)
+                screen.blit(desc, (list_x + 14, y + 34))
+            elif i == 1:
+                bg = (55, 50, 65) if sel else (33, 30, 42)
+                pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
+                if sel:
+                    pygame.draw.rect(screen, PINK, (list_x, y, list_w, row_h - 6), 2, border_radius=10)
+                name = fonts["mid"].render(f"Lautstärke: {music_volume_label(save_data)}", True, PINK)
+                screen.blit(name, (list_x + 14, y + 4))
+                desc = fonts["small"].render("Tap / Enter: durchschalten (Leise · Mittel · Laut)", True, HUD_DIM)
+                screen.blit(desc, (list_x + 14, y + 34))
+            elif i == 2:
                 bg = (50, 50, 70) if sel else (30, 32, 46)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -2514,7 +2623,7 @@ async def run_menu(screen, save_data, fonts):
                 screen.blit(name, (list_x + 14, y + 4))
                 desc = fonts["small"].render("Tap / Enter: wechseln (Leicht · Mittel · Schwer)", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
-            elif i == 1:
+            elif i == 3:
                 bg = (60, 50, 30) if sel else (40, 35, 25)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -2524,7 +2633,7 @@ async def run_menu(screen, save_data, fonts):
                 desc = fonts["small"].render("Punkte ausgeben, Rad aufmotzen", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
             else:
-                r = ROUTES[i - 2]
+                r = ROUTES[i - 4]
                 bg = (40, 52, 80) if sel else (28, 32, 48)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -2557,10 +2666,10 @@ async def run_menu(screen, save_data, fonts):
         if scroll_start + visible < options_count:
             draw_scroll_arrow(screen, W // 2, list_y0 + visible * row_h, "down")
 
-        hint_txt = "Tap oder Pfeiltasten · Enter startet · M = Sound"
-        if music_is_muted():
-            hint_txt += " (aus)"
-        hint = fonts["small"].render(hint_txt, True, HUD_DIM)
+        hint = fonts["small"].render(
+            "Tap oder Pfeiltasten · Enter startet",
+            True, HUD_DIM,
+        )
         screen.blit(hint, (W // 2 - hint.get_width() // 2, H - 26))
         # Versionsnummer unten rechts — wird pro Push hochgezaehlt, damit man
         # im Browser-Cache vs. Live-Build vergleichen kann.
@@ -2643,7 +2752,7 @@ async def run_shop(screen, save_data, fonts):
                 if event.key in (pygame.K_RETURN, pygame.K_SPACE):
                     activate_item(items_list[selectable[cur]][1])
                 if event.key == pygame.K_m:
-                    music_toggle_mute()
+                    music_toggle_mute(save_data)
             touch.handle_event(event)
             tap = event_tap_pos(event)
             if tap is not None:
@@ -2996,7 +3105,7 @@ async def run_race(screen, route, save_data, fonts):
                 if event.key == pygame.K_RETURN and state == "finished":
                     return
                 if event.key == pygame.K_m:
-                    music_toggle_mute()
+                    music_toggle_mute(save_data)
             touch.handle_event(event)
             tap = event_tap_pos(event)
             if tap is not None:
@@ -3246,7 +3355,9 @@ async def main():
     pygame.display.set_caption("Radgame")
     pygame.display.set_mode((W, H), _display_flags())
     fonts = make_fonts()
-    music_init()
+    # Mute-Status + Volume aus dem Save laden — Musik startet so wie der
+    # User sie zuletzt eingestellt hatte.
+    music_init(load_save())
     while True:
         save_data = load_save()
         # get_surface() liefert die aktuelle Display-Surface, auch nach Resize.
