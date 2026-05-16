@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v8"
+VERSION = "v9"
 
 
 def _detect_touch():
@@ -2793,34 +2793,31 @@ async def run_race(screen, route, save_data, fonts):
                 v.update(dt)
             # Sichtbares Bild reicht von player.distance - (H-PLAYER_Y)/PX_PER_M
             # (unterer Bildrand) bis +PLAYER_Y/PX_PER_M (oben unter HUD).
-            # Fahrzeuge muessen IM sichtbaren Bereich spawnen, sonst werden
-            # sie sofort vom Cull weggeraeumt.
             view_back = (H - PLAYER_Y) / PX_PER_M  # ~19m fuer 960h
             view_front = (PLAYER_Y - HUD_H) / PX_PER_M  # ~14m fuer 960h
-            # Foto-Motorrad: spawnt knapp am unteren Bildrand und ueberholt.
+            # Fahrzeuge spawnen JENSEITS des oberen Bildrands (also weiter vorne
+            # auf der Strecke), bewegen sich langsamer als der Spieler und
+            # wandern dadurch von oben ins Bild rein.
             next_moto_t -= dt
             if next_moto_t <= 0:
-                next_moto_t = random.uniform(4, 10)
+                next_moto_t = random.uniform(5, 12)
                 side = random.choice([-1, 1])
                 offset = side * (ROAD_WIDTH // 2 - 14)
                 vehicles.append(Vehicle(
-                    distance=player.distance - view_back * 0.9,
+                    distance=player.distance + view_front + random.uniform(3, 8),
                     lane_offset=offset,
-                    speed_kmh=max(player.speed + random.uniform(8, 14), 40),
+                    speed_kmh=max(player.speed - random.uniform(5, 10), 24),
                     sprite=photo_moto_sprite,
                 ))
-            # Teamwagen: spawnt knapp vor dem Spieler oben am Bildrand und
-            # faellt langsam zurueck, bis er hinten ausm Bild ist. Zufaellige
-            # Team-Farbe pro Spawn.
             next_car_t -= dt
             if next_car_t <= 0:
-                next_car_t = random.uniform(6, 14)
+                next_car_t = random.uniform(8, 16)
                 side = random.choice([-1, 1])
                 offset = side * (ROAD_WIDTH // 2 - 18)
                 vehicles.append(Vehicle(
-                    distance=player.distance + view_front * 0.85,
+                    distance=player.distance + view_front + random.uniform(4, 10),
                     lane_offset=offset,
-                    speed_kmh=max(player.speed - random.uniform(3, 7), 24),
+                    speed_kmh=max(player.speed - random.uniform(6, 12), 22),
                     sprite=random.choice(team_car_sprites),
                 ))
             # Heli-Schatten driftet quer über den Bildschirm. Außerhalb des
@@ -2855,9 +2852,10 @@ async def run_race(screen, route, save_data, fonts):
             decor[:] = [d for d in decor if d.distance > player.distance - cull_behind]
             bales[:] = [b for b in bales if b.alive and b.distance > player.distance - cull_behind]
             paints[:] = [p for p in paints if p[0] > player.distance - cull_behind]
-            # Vehicles: bis kurz hinterm unteren Bildrand bzw. oberhalb der HUD
-            # noch sichtbar — danach raus.
-            cull_ahead = (PLAYER_Y - HUD_H) / PX_PER_M + 6
+            # Vehicles duerfen oberhalb der HUD noch ein paar Meter ausserhalb
+            # des sichtbaren Bereichs gespawnt sein (damit sie reinwandern
+            # statt zu poppen), aber nach unten sofort raus sobald weg.
+            cull_ahead = (PLAYER_Y - HUD_H) / PX_PER_M + 14
             vehicles[:] = [v for v in vehicles
                            if -cull_behind < (v.distance - player.distance) < cull_ahead]
             if player.distance >= distance_target:
