@@ -1,15 +1,21 @@
 """Post-Build-Patch fuer build/web/index.html.
 
-pygbag setzt per Default einen 1280x720-Landscape-Framebuffer (fb_ar 1.77)
-und stretcht das Canvas per CSS auf 100%x100% — auf Portrait-Handys quetscht
-das unser Pygame-Surface in 16:9 und verzerrt sichtbar. Dieser Patch laeuft
-nach `pygbag --build` und macht drei Dinge:
+pygbag setzt per Default einen 1280x720-Landscape-Framebuffer (fb_ar 1.77).
+Unser Pygame-Surface ist aber portrait — ohne Patch wird das Canvas in
+Landscape gestretcht und auf Portrait-Handys gequetscht. Dieser Patch:
 
 1. Doppelter <meta viewport>-Tag zusammengefasst (height-Override war Murks).
 2. fb_width/fb_height/fb_ar werden direkt nach dem Config-Dict auf den
-   tatsaechlichen window.innerWidth/innerHeight gesetzt, bevor pygbag init
-   liest.
-3. Canvas-CSS auf 100vw x 100vh, html/body overflow:hidden + Background.
+   tatsaechlichen window.innerWidth/innerHeight gesetzt, BEVOR pygbag init
+   liest. Damit ist das Canvas innen passend portrait.
+3. html/body auf 100% Hoehe + ohne Scrollbars + Hintergrund. Canvas-CSS
+   wird NICHT angefasst — pygbags Default `width:100%; height:100%; top/
+   bottom/left/right:0` fuellt das Viewport korrekt, sobald body 100%
+   gross ist.
+
+WICHTIG: KEIN 100vh benutzen! Auf Mobile ist 100vh > innerHeight, weil die
+URL-Bar nicht abgezogen wird — das schiebt das Canvas ueber den sichtbaren
+Bereich, oben/unten werden abgeschnitten und Touch-Buttons sind unsichtbar.
 
 Wird aus .github/workflows/pages.yml aufgerufen.
 """
@@ -43,12 +49,12 @@ def patch(p: Path) -> None:
     )
     html = html.replace(needle, inject)
 
+    # Nur html/body anfassen — Canvas-CSS bleibt wie pygbag es haben will.
     html = html.replace(
         "</head>",
         "<style>\n"
-        "html, body { width: 100%; height: 100%; overflow: hidden; background: #14182a; }\n"
-        "canvas.emscripten { width: 100vw !important; height: 100vh !important; "
-        "max-width: 100vw; max-height: 100vh; display: block; }\n"
+        "html, body { width: 100%; height: 100%; margin: 0; padding: 0; "
+        "overflow: hidden; background: #14182a; }\n"
         "</style>\n</head>",
     )
 
