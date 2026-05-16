@@ -688,6 +688,25 @@ def make_rock_obstacle_sprite():
     return s
 
 
+def make_helicopter_shadow_sprite():
+    """Schwebender Heli-Schatten: dunkler Blob mit Heckausleger und vier
+    Rotorblättern. Semi-transparent, damit der Asphalt durchschimmert."""
+    w, h = 120, 56
+    s = pygame.Surface((w, h), pygame.SRCALPHA)
+    # Body
+    pygame.draw.ellipse(s, (0, 0, 0, 90), (14, 12, w - 28, h - 24))
+    # Heckausleger
+    pygame.draw.rect(s, (0, 0, 0, 70), (w - 26, h // 2 - 3, 24, 6))
+    pygame.draw.ellipse(s, (0, 0, 0, 80), (w - 12, h // 2 - 6, 10, 12))
+    # Rotorblätter (vier statt rotierend — kürzt sich aufm Asphalt eh ab)
+    cx, cy = w // 2 - 12, h // 2
+    for a in (0.2, 1.7, 3.3, 4.9):
+        x2 = cx + math.cos(a) * 42
+        y2 = cy + math.sin(a) * 16
+        pygame.draw.line(s, (0, 0, 0, 55), (cx, cy), (x2, y2), 4)
+    return s
+
+
 def make_photo_motorbike_sprite():
     """Foto-Motorrad mit Kameramann hinten — überholt den Pulk meist links."""
     s = pygame.Surface((22, 42), pygame.SRCALPHA)
@@ -2052,6 +2071,11 @@ async def run_race(screen, route, save_data, fonts):
     vehicles = []
     next_moto_t = random.uniform(8, 16)
     next_car_t = random.uniform(12, 22)
+    heli_active = False
+    heli_t = random.uniform(6, 14)
+    heli_x = 0.0
+    heli_y = 0.0
+    heli_vx = 0.0
     spawn_density = route["obstacle_density"] * preset["obstacle_mult"]
     distance_target = route["distance_m"]
 
@@ -2085,6 +2109,7 @@ async def run_race(screen, route, save_data, fonts):
     haybale_sprite = make_haybale_sprite()
     photo_moto_sprite = make_photo_motorbike_sprite()
     team_car_sprite = make_team_car_sprite()
+    heli_shadow_sprite = make_helicopter_shadow_sprite()
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
 
@@ -2268,6 +2293,21 @@ async def run_race(screen, route, save_data, fonts):
                     speed_kmh=max(player.speed - random.uniform(2, 6), 26),
                     sprite=team_car_sprite,
                 ))
+            # Heli-Schatten driftet quer über den Bildschirm. Außerhalb des
+            # Renn-Geschehens, also reine Screen-Animation.
+            if heli_active:
+                heli_x += heli_vx * dt
+                if heli_x < -200 or heli_x > W + 200:
+                    heli_active = False
+                    heli_t = random.uniform(12, 28)
+            else:
+                heli_t -= dt
+                if heli_t <= 0:
+                    heli_active = True
+                    side = random.choice([-1, 1])
+                    heli_x = -150.0 if side == 1 else float(W + 150)
+                    heli_vx = (90 if side == 1 else -90) * random.uniform(0.9, 1.4)
+                    heli_y = float(HUD_H + 30 + random.uniform(0, max(40, H * 0.35)))
             update_weather_particles(rain_particles, snow_particles, wind_particles, dt)
             check_collisions(player, obstacles)
             check_haybales(player, bales)
@@ -2313,6 +2353,11 @@ async def run_race(screen, route, save_data, fonts):
         recent_pickup_t = max(0.0, recent_pickup_t - dt)
 
         draw_road(screen, player, theme_data)
+        # Heli-Schatten direkt aufm Asphalt — unter allem anderen.
+        if heli_active:
+            screen.blit(heli_shadow_sprite,
+                        (int(heli_x) - heli_shadow_sprite.get_width() // 2,
+                         int(heli_y) - heli_shadow_sprite.get_height() // 2))
         # Asphalt-Tags zuerst — gehören direkt auf den Belag.
         for pdist, px, pspr in paints:
             draw_world_obj(screen, pdist, px, pspr, player)
