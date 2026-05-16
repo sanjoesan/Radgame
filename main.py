@@ -688,6 +688,73 @@ def make_rock_obstacle_sprite():
     return s
 
 
+def make_photo_motorbike_sprite():
+    """Foto-Motorrad mit Kameramann hinten — überholt den Pulk meist links."""
+    s = pygame.Surface((22, 42), pygame.SRCALPHA)
+    tire = (20, 20, 25)
+    rim = (160, 160, 165)
+    body = (215, 55, 55)
+    helmet_d = (40, 40, 50)
+    visor = (250, 220, 100)
+    cam = (35, 35, 42)
+    cam_lens = (190, 200, 220)
+    arm = (220, 195, 165)
+    # Vorderrad
+    pygame.draw.rect(s, tire, (9, 0, 4, 9))
+    pygame.draw.rect(s, rim, (10, 2, 2, 5))
+    # Tank
+    pygame.draw.rect(s, body, (7, 9, 8, 6))
+    pygame.draw.rect(s, (255, 255, 255), (7, 12, 8, 1))
+    # Fahrer
+    pygame.draw.ellipse(s, helmet_d, (7, 13, 8, 8))
+    pygame.draw.rect(s, visor, (8, 14, 6, 2))
+    pygame.draw.rect(s, body, (6, 18, 10, 6))
+    # Fotograf
+    pygame.draw.ellipse(s, helmet_d, (6, 22, 10, 8))
+    pygame.draw.rect(s, arm, (3, 24, 3, 4))
+    # Kamera links rausgehalten
+    pygame.draw.rect(s, cam, (0, 23, 5, 5))
+    pygame.draw.circle(s, cam_lens, (2, 25), 2)
+    # Auspuff
+    pygame.draw.rect(s, (130, 130, 135), (15, 26, 3, 4))
+    # Hinterrad
+    pygame.draw.rect(s, tire, (9, 33, 4, 9))
+    pygame.draw.rect(s, rim, (10, 35, 2, 5))
+    return s
+
+
+def make_team_car_sprite():
+    """Teamwagen mit Ersatzrädern auf dem Dach."""
+    s = pygame.Surface((28, 54), pygame.SRCALPHA)
+    body = (45, 110, 195)
+    body_hi = (75, 140, 225)
+    glass = (140, 200, 230)
+    tire = (20, 20, 25)
+    rim = (160, 160, 165)
+    spare = (35, 35, 42)
+    spare_rim = (180, 180, 185)
+    # Räder
+    for ry in (8, 38):
+        pygame.draw.rect(s, tire, (1, ry, 4, 10))
+        pygame.draw.rect(s, tire, (23, ry, 4, 10))
+        pygame.draw.rect(s, rim, (2, ry + 2, 2, 6))
+        pygame.draw.rect(s, rim, (24, ry + 2, 2, 6))
+    # Karosserie
+    pygame.draw.rect(s, body, (4, 4, 20, 46))
+    pygame.draw.rect(s, body_hi, (4, 4, 20, 3))
+    # Frontscheibe
+    pygame.draw.rect(s, glass, (6, 9, 16, 6))
+    # Dachgepäckträger + Ersatzräder von oben (Ovale quer)
+    for ry in (18, 24, 30, 36):
+        pygame.draw.rect(s, spare, (7, ry, 14, 4))
+        pygame.draw.rect(s, spare_rim, (13, ry + 1, 2, 2))
+    # Heckscheibe
+    pygame.draw.rect(s, glass, (6, 42, 16, 4))
+    # Logo
+    pygame.draw.rect(s, (250, 220, 80), (10, 11, 8, 2))
+    return s
+
+
 def make_diablo_spectator_sprite():
     """Der berühmte Tour-Devil-Fan: roter Anzug, Dreizack, Hörner."""
     s = pygame.Surface((16, 26), pygame.SRCALPHA)
@@ -1140,6 +1207,25 @@ class Opponent:
         self.wobble_phase += dt * 2
         self.world_x += math.sin(self.wobble_phase) * 9 * dt
         self.pedal_phase += dt * (3.0 + self.speed * 0.18)
+
+
+class Vehicle:
+    """Begleitfahrzeug (Foto-Motorrad oder Teamwagen). Bleibt in seiner
+    Spur entlang der Straßenmitte und fährt mit konstanter Geschwindigkeit
+    — rein dekorativ, keine Kollision mit dem Spieler."""
+
+    def __init__(self, distance, lane_offset, speed_kmh, sprite):
+        self.distance = distance
+        self.lane_offset = lane_offset
+        self.speed = speed_kmh
+        self.sprite = sprite
+
+    @property
+    def world_x(self):
+        return road_curve(self.distance) + self.lane_offset
+
+    def update(self, dt):
+        self.distance += self.speed / 3.6 * dt
 
 
 class Obstacle:
@@ -1963,6 +2049,9 @@ async def run_race(screen, route, save_data, fonts):
     next_spec_d = 25.0
     next_clutter_d = 20.0
     next_bale_t = random.uniform(2.5, 6.0)
+    vehicles = []
+    next_moto_t = random.uniform(8, 16)
+    next_car_t = random.uniform(12, 22)
     spawn_density = route["obstacle_density"] * preset["obstacle_mult"]
     distance_target = route["distance_m"]
 
@@ -1994,6 +2083,8 @@ async def run_race(screen, route, save_data, fonts):
         "snowpatch": make_snowpatch_sprite(),
     }
     haybale_sprite = make_haybale_sprite()
+    photo_moto_sprite = make_photo_motorbike_sprite()
+    team_car_sprite = make_team_car_sprite()
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
 
@@ -2151,6 +2242,32 @@ async def run_race(screen, route, save_data, fonts):
                     next_bale_t = random.uniform(4.5, 9.0)
             for b in bales:
                 b.update(dt)
+            for v in vehicles:
+                v.update(dt)
+            # Foto-Motorrad: kommt von hinten und überholt schneller als der Spieler.
+            next_moto_t -= dt
+            if next_moto_t <= 0:
+                next_moto_t = random.uniform(14, 28)
+                side = random.choice([-1, 1])
+                offset = side * (ROAD_WIDTH // 2 - 14)
+                vehicles.append(Vehicle(
+                    distance=player.distance - 28,
+                    lane_offset=offset,
+                    speed_kmh=max(player.speed + random.uniform(6, 12), 38),
+                    sprite=photo_moto_sprite,
+                ))
+            # Teamwagen: hängt knapp hinterm Pulk, etwas langsamer.
+            next_car_t -= dt
+            if next_car_t <= 0:
+                next_car_t = random.uniform(18, 35)
+                side = random.choice([-1, 1])
+                offset = side * (ROAD_WIDTH // 2 - 18)
+                vehicles.append(Vehicle(
+                    distance=player.distance - 40,
+                    lane_offset=offset,
+                    speed_kmh=max(player.speed - random.uniform(2, 6), 26),
+                    sprite=team_car_sprite,
+                ))
             update_weather_particles(rain_particles, snow_particles, wind_particles, dt)
             check_collisions(player, obstacles)
             check_haybales(player, bales)
@@ -2168,6 +2285,8 @@ async def run_race(screen, route, save_data, fonts):
             decor[:] = [d for d in decor if d.distance > player.distance - cull_behind]
             bales[:] = [b for b in bales if b.alive and b.distance > player.distance - cull_behind]
             paints[:] = [p for p in paints if p[0] > player.distance - cull_behind]
+            vehicles[:] = [v for v in vehicles
+                           if -cull_behind < (v.distance - player.distance) < 140]
             if player.distance >= distance_target:
                 state = "finished"
                 final_position = player_position(player, opponents)
@@ -2205,6 +2324,11 @@ async def run_race(screen, route, save_data, fonts):
             else:
                 spr = decor_sprites[d.kind]
             draw_world_obj(screen, d.distance, d.world_x, spr, player)
+        # Begleitfahrzeuge zwischen Pulk-Deko und Gegnern, damit sie nicht von
+        # einer Trommler-Gruppe am Rand überlagert werden, aber Gegner-Trikots
+        # weiter sichtbar bleiben.
+        for v in sorted(vehicles, key=lambda x: x.distance):
+            draw_world_obj(screen, v.distance, v.world_x, v.sprite, player)
         for o in sorted(opponents, key=lambda x: x.distance):
             s = math.sin(o.pedal_phase)
             frame = o.sprite_frames[0] if s > 0 else o.sprite_frames[1]
