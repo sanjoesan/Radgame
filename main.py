@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v26"
+VERSION = "v27"
 
 
 def _detect_touch():
@@ -815,7 +815,8 @@ THEMES = {
         "grass":   (60, 110, 60),
         "road":    (72, 72, 82),
         "edge":    (220, 220, 220),
-        "decor":   ["oak", "oak", "oak", "pine", "pine", "bush", "bush", "rock_small"],
+        "decor":   ["oak", "oak", "oak", "pine", "pine", "bush", "bush", "rock_small",
+                    "cow", "cow", "horse"],
         "decor_density": 2.4,
         "clutter": ["grass_green", "grass_green", "grass_green", "grass_green",
                     "rock_tiny", "flower_pink", "flower_yellow", "flower_white"],
@@ -842,7 +843,7 @@ THEMES = {
         "edge":    (210, 190, 140),
         "decor":   ["cypress", "cypress", "cypress", "cypress", "bush",
                     "vineyard", "vineyard", "vineyard", "sunflower", "sunflower",
-                    "stone_house", "rock_small", "rock_big"],
+                    "stone_house", "rock_small", "rock_big", "horse"],
         "decor_density": 2.0,
         "clutter": ["grass_dry", "grass_dry", "grass_dry", "rock_tiny", "rock_tiny",
                     "flower_yellow", "sunflower"],
@@ -881,13 +882,101 @@ THEMES = {
         "road":    (75, 70, 75),
         "edge":    (215, 210, 200),
         "decor":   ["oak_autumn", "oak_autumn", "oak_autumn", "bush_autumn", "bush_autumn",
-                    "pine", "rock_small", "stone_wall", "stone_wall", "stone_house"],
+                    "pine", "rock_small", "stone_wall", "stone_wall", "stone_house",
+                    "cow", "horse"],
         "decor_density": 2.2,
         "clutter": ["grass_autumn", "grass_autumn", "grass_autumn", "rock_tiny",
                     "flower_yellow"],
         "clutter_density": 1.3,
         "obstacles": [("pothole", 2), ("branch", 4)],
         "curve_mult": 0.95,
+    },
+    "polder": {
+        # Flaches Holland — saftiges Wiesengrün, dunkler Asphalt, Windmühlen.
+        "grass":   (95, 165, 100),
+        "road":    (55, 60, 70),
+        "edge":    (235, 235, 230),
+        "decor":   ["windmill", "windmill", "sheep", "sheep", "cow", "cow", "cow",
+                    "horse", "oak", "bush", "stone_house", "belgian_flag"],
+        "decor_density": 1.5,
+        "clutter": ["grass_green", "grass_green", "grass_green",
+                    "flower_yellow", "flower_white"],
+        "clutter_density": 1.4,
+        "obstacles": [("pothole", 3), ("branch", 2)],
+        "curve_mult": 0.4,
+    },
+    "heath": {
+        # Limburger Hügel / Heide — heidekrautviolett auf erdig braun.
+        "grass":   (155, 130, 145),
+        "road":    (95, 95, 105),
+        "edge":    (215, 210, 215),
+        "decor":   ["heather", "heather", "heather", "sheep", "sheep", "horse",
+                    "oak", "bush", "rock_small", "stone_wall"],
+        "decor_density": 2.0,
+        "clutter": ["heather", "grass_dry", "grass_dry", "rock_tiny",
+                    "flower_pink", "flower_white"],
+        "clutter_density": 1.3,
+        "obstacles": [("pothole", 3), ("branch", 3)],
+        "curve_mult": 1.05,
+    },
+    "dolomites": {
+        # Rosa Kalkstein, Lärchen, blasses Asphaltband.
+        "grass":   (165, 175, 145),
+        "road":    (105, 100, 110),
+        "edge":    (235, 230, 220),
+        "decor":   ["larch", "larch", "larch", "pink_rock", "pink_rock",
+                    "pine_snow", "rock_big", "rock_small", "chalet",
+                    "goat", "tornante", "tornante"],
+        "decor_density": 2.8,
+        "clutter": ["grass_alpine", "grass_rocky", "rock_tiny", "rock_tiny",
+                    "flower_white", "flower_yellow"],
+        "clutter_density": 1.4,
+        "obstacles": [("pothole", 2), ("rock", 3), ("branch", 1)],
+        "curve_mult": 1.45,
+    },
+    "desert": {
+        # Spanische Hochebene — ockerfarbene Erde, schwarzgrauer Straßenbelag.
+        "grass":   (195, 165, 105),
+        "road":    (70, 65, 60),
+        "edge":    (230, 215, 175),
+        "decor":   ["agave", "agave", "dry_bush", "dry_bush", "dry_bush",
+                    "sandstone", "sandstone", "cypress", "stone_house",
+                    "sunflower"],
+        "decor_density": 1.8,
+        "clutter": ["grass_dry", "grass_dry", "grass_dry", "rock_tiny",
+                    "dry_bush", "flower_yellow"],
+        "clutter_density": 1.2,
+        "obstacles": [("pothole", 3), ("rock", 2), ("branch", 1)],
+        "curve_mult": 1.1,
+    },
+    "volcanic": {
+        # Ätna — schwarze Lavaerde, fast schwarzer Asphalt, Rauchsäule am Horizont.
+        "grass":   (60, 55, 60),
+        "road":    (35, 35, 42),
+        "edge":    (200, 195, 195),
+        "decor":   ["lava_rock", "lava_rock", "lava_rock", "etna_cone",
+                    "dry_bush", "dry_bush", "agave", "cypress", "rock_big"],
+        "decor_density": 2.2,
+        "clutter": ["rock_tiny", "rock_tiny", "rock_tiny", "lava_rock",
+                    "grass_dry", "flower_yellow"],
+        "clutter_density": 1.5,
+        "obstacles": [("pothole", 2), ("rock", 4)],
+        "curve_mult": 1.3,
+    },
+    "bretagne": {
+        # Bretagne — feuchtes Granitgrün, Hortensien, Calvaires.
+        "grass":   (115, 155, 125),
+        "road":    (85, 90, 95),
+        "edge":    (220, 220, 215),
+        "decor":   ["gorse", "gorse", "hortensia", "hortensia", "granite_cross",
+                    "oak", "pine", "bush", "rock_small", "stone_house",
+                    "cow", "horse"],
+        "decor_density": 2.2,
+        "clutter": ["grass_green", "grass_coast", "gorse", "rock_tiny",
+                    "flower_white", "flower_pink"],
+        "clutter_density": 1.4,
+        "obstacles": [("pothole", 3), ("branch", 3)],
+        "curve_mult": 0.9,
     },
 }
 
@@ -1523,6 +1612,210 @@ def make_old_stone_wall_sprite():
     return s
 
 
+def make_windmill_sprite():
+    """Holländische Windmühle — Polder-Strecken."""
+    s = pygame.Surface((34, 52), pygame.SRCALPHA)
+    body = (180, 160, 130)
+    body_dark = (130, 110, 85)
+    roof = (90, 55, 45)
+    blade = (235, 225, 200)
+    pygame.draw.polygon(s, body, [(8, 52), (10, 18), (24, 18), (26, 52)])
+    pygame.draw.rect(s, body_dark, (10, 36, 14, 1))
+    pygame.draw.rect(s, body_dark, (10, 44, 14, 1))
+    pygame.draw.polygon(s, roof, [(8, 18), (17, 8), (26, 18)])
+    pygame.draw.rect(s, (40, 40, 50), (15, 22, 4, 5))
+    cx, cy = 17, 16
+    for dx, dy in ((0, -10), (10, 0), (0, 10), (-10, 0)):
+        pygame.draw.line(s, blade, (cx, cy), (cx + dx, cy + dy), 2)
+    pygame.draw.rect(s, (60, 60, 70), (cx - 1, cy - 1, 3, 3))
+    return s
+
+
+def make_sheep_sprite():
+    """Schaf — Heath/Moorland und Polder."""
+    s = pygame.Surface((18, 14), pygame.SRCALPHA)
+    pygame.draw.ellipse(s, (235, 232, 225), (2, 3, 14, 8))
+    pygame.draw.ellipse(s, (40, 35, 35), (12, 5, 5, 5))
+    pygame.draw.rect(s, (40, 35, 35), (4, 10, 2, 3))
+    pygame.draw.rect(s, (40, 35, 35), (12, 10, 2, 3))
+    return s
+
+
+def make_cow_sprite():
+    """Schwarzbunte Kuh, von oben/schräg — Wiesenstrecken."""
+    s = pygame.Surface((24, 16), pygame.SRCALPHA)
+    body = (245, 245, 240)
+    spot = (35, 30, 35)
+    pygame.draw.ellipse(s, body, (3, 4, 18, 9))
+    pygame.draw.ellipse(s, spot, (5, 5, 5, 4))
+    pygame.draw.ellipse(s, spot, (12, 7, 6, 4))
+    pygame.draw.ellipse(s, spot, (15, 4, 4, 3))
+    pygame.draw.ellipse(s, (220, 195, 175), (17, 3, 6, 6))
+    pygame.draw.rect(s, (240, 200, 60), (18, 4, 1, 2))
+    pygame.draw.rect(s, (240, 200, 60), (21, 4, 1, 2))
+    pygame.draw.rect(s, spot, (5, 12, 2, 3))
+    pygame.draw.rect(s, spot, (10, 12, 2, 3))
+    pygame.draw.rect(s, spot, (16, 12, 2, 3))
+    pygame.draw.rect(s, (240, 220, 100), (10, 9, 2, 2))
+    return s
+
+
+def make_horse_sprite():
+    """Pferd — braun mit dunkler Mähne, für Wiesen und Bretagne."""
+    s = pygame.Surface((24, 18), pygame.SRCALPHA)
+    body = (135, 85, 55)
+    body_dark = (95, 55, 35)
+    mane = (40, 30, 25)
+    pygame.draw.ellipse(s, body, (3, 5, 16, 8))
+    pygame.draw.polygon(s, body, [(17, 4), (22, 2), (23, 9), (19, 11)])
+    pygame.draw.polygon(s, mane, [(15, 4), (19, 2), (20, 7), (15, 8)])
+    pygame.draw.rect(s, mane, (21, 1, 1, 2))
+    pygame.draw.rect(s, mane, (22, 3, 1, 2))
+    pygame.draw.rect(s, (245, 240, 230), (22, 6, 1, 1))
+    pygame.draw.rect(s, body_dark, (5, 12, 2, 6))
+    pygame.draw.rect(s, body_dark, (9, 12, 2, 6))
+    pygame.draw.rect(s, body_dark, (13, 12, 2, 6))
+    pygame.draw.rect(s, body_dark, (17, 12, 2, 6))
+    pygame.draw.polygon(s, mane, [(3, 6), (5, 6), (2, 11)])
+    return s
+
+
+def make_heather_sprite():
+    """Heidekraut-Busch — Heath/Moor."""
+    s = pygame.Surface((18, 14), pygame.SRCALPHA)
+    pygame.draw.ellipse(s, (95, 80, 70), (0, 6, 18, 8))
+    pygame.draw.ellipse(s, (155, 95, 145), (2, 2, 14, 9))
+    pygame.draw.ellipse(s, (200, 130, 180), (5, 0, 8, 6))
+    return s
+
+
+def make_larch_sprite():
+    """Lärche — herbstgelb, Dolomiten/Hochalpen."""
+    s = pygame.Surface((20, 36), pygame.SRCALPHA)
+    pygame.draw.rect(s, BROWN_DARK, (9, 28, 3, 8))
+    gold = (220, 175, 70)
+    light = (245, 215, 110)
+    tiers = [(2, 6), (9, 9), (16, 12)]
+    for ty, w in tiers:
+        pygame.draw.polygon(s, gold, [(10, ty), (10 - w, ty + 9), (10 + w, ty + 9)])
+        pygame.draw.polygon(s, light, [(10, ty + 1), (10 - w + 2, ty + 8), (10 + w - 2, ty + 8)])
+    return s
+
+
+def make_pink_rock_sprite():
+    """Rosa Dolomit-Felsspitze — signature für Pordoi/Corones."""
+    s = pygame.Surface((30, 38), pygame.SRCALPHA)
+    base = (200, 175, 165)
+    light = (235, 215, 200)
+    shadow = (155, 130, 125)
+    pygame.draw.polygon(s, base, [(2, 38), (8, 14), (15, 4), (22, 14), (28, 38)])
+    pygame.draw.polygon(s, light, [(8, 14), (15, 4), (18, 14), (15, 22)])
+    pygame.draw.polygon(s, shadow, [(18, 14), (22, 14), (28, 38), (20, 38)])
+    pygame.draw.line(s, shadow, (15, 8), (12, 24), 1)
+    pygame.draw.line(s, shadow, (18, 18), (20, 32), 1)
+    return s
+
+
+def make_agave_sprite():
+    """Agave / sukkulente — Wüsten- und Vulkan-Strecken."""
+    s = pygame.Surface((24, 22), pygame.SRCALPHA)
+    base = (90, 120, 80)
+    light = (140, 175, 110)
+    cx, cy = 12, 22
+    for ang in range(-80, 81, 20):
+        rad = math.radians(ang)
+        tx = cx + int(math.sin(rad) * 11)
+        ty = cy - int(math.cos(rad) * 18)
+        pygame.draw.line(s, base, (cx, cy), (tx, ty), 3)
+        pygame.draw.line(s, light, (cx, cy - 1), (tx, ty), 1)
+    pygame.draw.ellipse(s, (60, 90, 60), (cx - 3, cy - 4, 7, 5))
+    return s
+
+
+def make_dry_bush_sprite():
+    """Trockener Busch / Tumbleweed-Look — Wüste und Vulkan."""
+    s = pygame.Surface((20, 14), pygame.SRCALPHA)
+    pygame.draw.ellipse(s, (155, 130, 80), (0, 2, 20, 10))
+    pygame.draw.ellipse(s, (190, 165, 110), (3, 0, 14, 8))
+    for x, y in ((4, 5), (10, 3), (15, 6), (8, 9)):
+        pygame.draw.rect(s, (110, 90, 55), (x, y, 2, 2))
+    return s
+
+
+def make_sandstone_sprite():
+    """Roter Sandstein-Brocken — Wüste."""
+    s = pygame.Surface((26, 18), pygame.SRCALPHA)
+    base = (175, 95, 60)
+    light = (215, 140, 90)
+    shadow = (115, 60, 40)
+    pygame.draw.polygon(s, base, [(0, 18), (4, 4), (14, 0), (22, 6), (26, 18)])
+    pygame.draw.polygon(s, light, [(4, 4), (14, 0), (16, 8), (8, 10)])
+    pygame.draw.polygon(s, shadow, [(16, 8), (22, 6), (26, 18), (20, 18)])
+    pygame.draw.line(s, shadow, (8, 10), (10, 18), 1)
+    return s
+
+
+def make_lava_rock_sprite():
+    """Schwarzer Lavabrocken mit rotem Glühen — Vulkan-Strecken."""
+    s = pygame.Surface((22, 14), pygame.SRCALPHA)
+    pygame.draw.polygon(s, (35, 30, 35), [(0, 14), (4, 4), (12, 2), (20, 6), (22, 14)])
+    pygame.draw.polygon(s, (65, 55, 60), [(4, 4), (12, 2), (10, 8), (6, 8)])
+    pygame.draw.rect(s, (210, 80, 40), (10, 8, 2, 2))
+    pygame.draw.rect(s, (240, 160, 60), (14, 10, 1, 1))
+    return s
+
+
+def make_etna_cone_sprite():
+    """Kleiner Vulkankegel mit Rauchsäule — Sizilien-Signatur."""
+    s = pygame.Surface((34, 42), pygame.SRCALPHA)
+    pygame.draw.polygon(s, (55, 45, 50), [(2, 42), (17, 12), (32, 42)])
+    pygame.draw.polygon(s, (80, 65, 70), [(10, 32), (17, 14), (24, 32)])
+    pygame.draw.polygon(s, (220, 100, 50), [(14, 18), (17, 12), (20, 18)])
+    pygame.draw.ellipse(s, (180, 175, 175), (12, 4, 12, 8))
+    pygame.draw.ellipse(s, (210, 205, 205), (15, 0, 10, 6))
+    return s
+
+
+def make_granite_cross_sprite():
+    """Bretonisches Calvaire (Granitkreuz)."""
+    s = pygame.Surface((18, 32), pygame.SRCALPHA)
+    stone = (175, 175, 170)
+    shadow = (115, 115, 115)
+    pygame.draw.rect(s, stone, (4, 26, 10, 6))
+    pygame.draw.rect(s, shadow, (4, 31, 10, 1))
+    pygame.draw.rect(s, stone, (7, 4, 4, 24))
+    pygame.draw.rect(s, stone, (2, 10, 14, 4))
+    pygame.draw.rect(s, shadow, (7, 14, 4, 1))
+    pygame.draw.rect(s, shadow, (2, 14, 14, 1))
+    return s
+
+
+def make_gorse_sprite():
+    """Stechginster — gelbe Blüten, bretonische Heide."""
+    s = pygame.Surface((20, 16), pygame.SRCALPHA)
+    pygame.draw.ellipse(s, (65, 95, 55), (0, 5, 20, 11))
+    pygame.draw.ellipse(s, (95, 130, 75), (3, 3, 14, 9))
+    for x, y in ((4, 6), (9, 4), (14, 7), (7, 9), (12, 10)):
+        pygame.draw.rect(s, (245, 215, 70), (x, y, 2, 2))
+    return s
+
+
+def make_hortensia_sprite():
+    """Hortensie — typisch Bretagne, blaue/rosa Blütenbälle."""
+    s = pygame.Surface((22, 22), pygame.SRCALPHA)
+    pygame.draw.ellipse(s, (60, 110, 70), (0, 10, 22, 12))
+    pygame.draw.ellipse(s, (90, 145, 100), (3, 8, 16, 9))
+    for cx, cy, col in (
+        (6, 6, (140, 165, 220)),
+        (13, 4, (200, 150, 200)),
+        (16, 10, (140, 165, 220)),
+        (9, 11, (180, 130, 190)),
+    ):
+        pygame.draw.ellipse(s, col, (cx - 3, cy - 2, 7, 6))
+        pygame.draw.rect(s, (245, 245, 250), (cx, cy, 1, 1))
+    return s
+
+
 def make_helicopter_shadow_sprite():
     """Heli-Schatten aus der Vogelperspektive (wir schauen von oben auf den
     Heli, der hoch ueber der Strasse fliegt).
@@ -1894,6 +2187,21 @@ def make_decor_sprites():
         "ski_lift":      make_ski_lift_sprite(),
         "chalet":        make_chalet_sprite(),
         "stone_wall":    make_old_stone_wall_sprite(),
+        "windmill":      make_windmill_sprite(),
+        "sheep":         make_sheep_sprite(),
+        "cow":           make_cow_sprite(),
+        "horse":         make_horse_sprite(),
+        "heather":       make_heather_sprite(),
+        "larch":         make_larch_sprite(),
+        "pink_rock":     make_pink_rock_sprite(),
+        "agave":         make_agave_sprite(),
+        "dry_bush":      make_dry_bush_sprite(),
+        "sandstone":     make_sandstone_sprite(),
+        "lava_rock":     make_lava_rock_sprite(),
+        "etna_cone":     make_etna_cone_sprite(),
+        "granite_cross": make_granite_cross_sprite(),
+        "gorse":         make_gorse_sprite(),
+        "hortensia":     make_hortensia_sprite(),
     }
     for i, col in enumerate(SPECTATOR_COLORS):
         d[f"spec_{i}_up"] = make_spectator_sprite(col, arms_up=True)
@@ -3202,7 +3510,7 @@ async def run_race(screen, route, save_data, fonts):
 
     theme_name = route.get("theme", "classic")
     strong_wind = route.get("wind", 0) >= 0.55
-    if theme_name in ("mountain", "alpine") and random.random() < 0.45:
+    if theme_name in ("mountain", "alpine", "dolomites") and random.random() < 0.45:
         weather = "snow"
     elif random.random() < 0.28:
         weather = "rain"
