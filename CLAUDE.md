@@ -38,6 +38,7 @@ Mehr Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - **Keine Type-Hints außer wo sie aufklären.** Pygame-Code ist meistens klar genug.
 - **`dt`-basierte Bewegung überall.** Niemals fix pro Frame inkrementieren. Frame-Cap ist 60 FPS plus Clamp bei `dt > 1/20`, damit ein Lag-Spike nicht durch Hindernisse springt.
 - **deutsche Strings in der UI**, englische im Code. Var-Namen englisch.
+- **`VERSION` bei JEDEM `git push` hochzählen.** Konstante steht oben in `main.py` (`VERSION = "v1"`), wird unten rechts im Hauptmenü angezeigt. So sieht der User sofort, ob im Browser noch eine alte gecachte Version läuft. Schema: einfacher Zähler `v1`, `v2`, ... — vor jedem Push den Wert inkrementieren, im Commit mitnehmen.
 
 ## Was du wahrscheinlich tun wirst
 

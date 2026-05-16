@@ -11,6 +11,10 @@ from routes import ROUTES
 
 IS_WEB = sys.platform == "emscripten"
 
+# Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
+# Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
+VERSION = "v1"
+
 
 def _detect_touch():
     """True nur auf echten Touch-Geräten (Smartphone/Tablet im Browser).
@@ -342,7 +346,8 @@ THEMES = {
         "grass":   (110, 160, 90),
         "road":    (75, 75, 85),
         "edge":    (230, 225, 200),
-        "decor":   ["palm", "palm", "palm", "bush", "bush", "oak", "rock_small"],
+        "decor":   ["palm", "palm", "palm", "palm", "bush", "bush",
+                    "beach_hut", "beach_hut", "boat", "oak", "rock_small"],
         "decor_density": 1.6,
         "clutter": ["grass_coast", "grass_coast", "grass_coast", "rock_tiny",
                     "flower_yellow", "flower_white"],
@@ -366,7 +371,8 @@ THEMES = {
         "grass":   (95, 120, 75),
         "road":    (130, 115, 95),
         "edge":    (190, 175, 150),
-        "decor":   ["oak", "oak", "oak", "bush", "bush", "rock_small", "pine"],
+        "decor":   ["oak", "oak", "oak", "bush", "bush", "rock_small", "pine",
+                    "belgian_flag", "belgian_flag", "frittenbude", "brick_church"],
         "decor_density": 1.9,
         "clutter": ["grass_green", "grass_green", "rock_tiny", "rock_tiny",
                     "flower_yellow", "flower_white"],
@@ -378,10 +384,12 @@ THEMES = {
         "grass":   (135, 145, 80),
         "road":    (180, 160, 110),
         "edge":    (210, 190, 140),
-        "decor":   ["cypress", "cypress", "cypress", "bush", "oak", "rock_small", "rock_big"],
+        "decor":   ["cypress", "cypress", "cypress", "cypress", "bush",
+                    "vineyard", "vineyard", "vineyard", "sunflower", "sunflower",
+                    "stone_house", "rock_small", "rock_big"],
         "decor_density": 2.0,
         "clutter": ["grass_dry", "grass_dry", "grass_dry", "rock_tiny", "rock_tiny",
-                    "flower_yellow"],
+                    "flower_yellow", "sunflower"],
         "clutter_density": 1.4,
         "obstacles": [("pothole", 3), ("rock", 2), ("branch", 2)],
         "curve_mult": 0.95,
@@ -391,7 +399,8 @@ THEMES = {
         "road":    (65, 65, 75),
         "edge":    (180, 180, 190),
         "decor":   ["pine", "pine", "pine", "pine", "rock_big", "rock_big",
-                    "rock_small", "rock_small", "rock_small"],
+                    "rock_small", "rock_small", "rock_small",
+                    "tornante", "tornante", "goat"],
         "decor_density": 3.0,
         "clutter": ["grass_rocky", "grass_rocky", "rock_tiny", "rock_tiny", "rock_tiny",
                     "flower_white"],
@@ -404,7 +413,7 @@ THEMES = {
         "road":    (80, 80, 90),
         "edge":    (240, 240, 245),
         "decor":   ["pine_snow", "pine_snow", "pine_snow", "rock_big", "rock_big",
-                    "rock_small", "rock_small"],
+                    "rock_small", "rock_small", "chalet", "ski_lift", "goat", "tornante"],
         "decor_density": 2.6,
         "clutter": ["grass_snow", "grass_snow", "grass_alpine", "rock_tiny", "rock_tiny"],
         "clutter_density": 1.3,
@@ -416,7 +425,7 @@ THEMES = {
         "road":    (75, 70, 75),
         "edge":    (215, 210, 200),
         "decor":   ["oak_autumn", "oak_autumn", "oak_autumn", "bush_autumn", "bush_autumn",
-                    "pine", "rock_small"],
+                    "pine", "rock_small", "stone_wall", "stone_wall", "stone_house"],
         "decor_density": 2.2,
         "clutter": ["grass_autumn", "grass_autumn", "grass_autumn", "rock_tiny",
                     "flower_yellow"],
@@ -688,6 +697,172 @@ def make_rock_obstacle_sprite():
     return s
 
 
+def make_beach_hut_sprite():
+    """Bunte Strandhütte — Markenzeichen ligurischer Küstenstrecken."""
+    s = pygame.Surface((24, 28), pygame.SRCALPHA)
+    body = (240, 240, 245)
+    stripe = (50, 130, 200)
+    roof = (220, 70, 70)
+    door = (40, 60, 110)
+    pygame.draw.rect(s, body, (2, 12, 20, 14))
+    for x in (5, 9, 13, 17):
+        pygame.draw.rect(s, stripe, (x, 12, 1, 14))
+    pygame.draw.polygon(s, roof, [(0, 14), (12, 4), (24, 14)])
+    pygame.draw.rect(s, door, (9, 18, 6, 8))
+    return s
+
+
+def make_boat_sprite():
+    """Kleines Fischerboot — passt zur Mittelmeerküste."""
+    s = pygame.Surface((30, 20), pygame.SRCALPHA)
+    hull = (110, 75, 40)
+    hull_dark = (80, 55, 30)
+    sail = (245, 245, 240)
+    pygame.draw.polygon(s, hull, [(0, 14), (30, 14), (26, 19), (4, 19)])
+    pygame.draw.rect(s, hull_dark, (4, 18, 22, 1))
+    pygame.draw.line(s, (60, 60, 70), (15, 0), (15, 14), 1)
+    pygame.draw.polygon(s, sail, [(15, 1), (24, 12), (15, 12)])
+    return s
+
+
+def make_frittenbude_sprite():
+    """Belgische Frittenbude mit Banner — Pavé-Strecken-Klassiker."""
+    s = pygame.Surface((30, 32), pygame.SRCALPHA)
+    pygame.draw.rect(s, (220, 220, 230), (2, 10, 26, 22))
+    pygame.draw.rect(s, (60, 60, 70), (2, 10, 26, 22), 1)
+    pygame.draw.rect(s, (200, 60, 60), (0, 6, 30, 6))
+    pygame.draw.rect(s, (250, 220, 60), (4, 12, 22, 4))
+    pygame.draw.rect(s, (40, 40, 50), (12, 16, 8, 8))
+    pygame.draw.polygon(s, (250, 230, 90), [(7, 24), (11, 24), (10, 30), (8, 30)])
+    pygame.draw.polygon(s, (250, 230, 90), [(20, 24), (24, 24), (23, 30), (21, 30)])
+    return s
+
+
+def make_belgian_flag_sprite():
+    """Schwarz-Gelb-Rot — Flandern-Stimmung."""
+    s = pygame.Surface((20, 32), pygame.SRCALPHA)
+    pygame.draw.rect(s, (60, 60, 70), (9, 2, 1, 30))
+    pygame.draw.rect(s, (25, 25, 30), (10, 4, 9, 6))
+    pygame.draw.rect(s, (250, 210, 60), (10, 10, 9, 6))
+    pygame.draw.rect(s, (220, 60, 60), (10, 16, 9, 6))
+    return s
+
+
+def make_brick_church_sprite():
+    """Backsteinkirche mit Turm — passt zu cobbles/Flandern."""
+    s = pygame.Surface((26, 40), pygame.SRCALPHA)
+    body = (190, 90, 70)
+    roof = (130, 60, 50)
+    pygame.draw.rect(s, body, (5, 18, 16, 22))
+    pygame.draw.polygon(s, roof, [(3, 18), (13, 12), (23, 18)])
+    pygame.draw.rect(s, body, (11, 4, 5, 16))
+    pygame.draw.polygon(s, roof, [(10, 4), (13, 0), (17, 4)])
+    pygame.draw.rect(s, (220, 220, 90), (13, 7, 1, 4))
+    pygame.draw.rect(s, (220, 220, 90), (12, 8, 3, 1))
+    pygame.draw.rect(s, (50, 50, 70), (8, 24, 3, 6))
+    pygame.draw.rect(s, (50, 50, 70), (15, 24, 3, 6))
+    return s
+
+
+def make_vineyard_post_sprite():
+    """Rebstock-Stütze mit Trauben — Toskana/Strade Bianche."""
+    s = pygame.Surface((14, 24), pygame.SRCALPHA)
+    pygame.draw.rect(s, (110, 75, 40), (6, 8, 2, 16))
+    for x, y in ((1, 10), (4, 6), (9, 11), (11, 7), (7, 14), (2, 16), (10, 17)):
+        pygame.draw.circle(s, (90, 140, 60), (x, y), 2)
+    for x, y in ((3, 12), (8, 9), (10, 14)):
+        pygame.draw.circle(s, (140, 90, 160), (x, y), 1)
+    return s
+
+
+def make_stone_house_sprite():
+    """Toskanisches Steinhaus mit Pultdach."""
+    s = pygame.Surface((30, 30), pygame.SRCALPHA)
+    body = (200, 180, 145)
+    stone = (160, 140, 110)
+    roof = (150, 80, 50)
+    pygame.draw.rect(s, body, (3, 12, 24, 18))
+    for x, y in ((5, 16), (12, 14), (20, 18), (24, 16), (8, 24), (18, 26), (22, 22)):
+        pygame.draw.rect(s, stone, (x, y, 3, 2))
+    pygame.draw.polygon(s, roof, [(0, 14), (15, 2), (30, 14)])
+    pygame.draw.rect(s, (60, 90, 140), (13, 20, 4, 6))
+    return s
+
+
+def make_sunflower_sprite():
+    """Sonnenblume — Sommer in der Toskana."""
+    s = pygame.Surface((14, 24), pygame.SRCALPHA)
+    pygame.draw.line(s, (60, 110, 50), (7, 23), (7, 10), 2)
+    pygame.draw.circle(s, (250, 200, 50), (7, 7), 5)
+    pygame.draw.circle(s, (110, 70, 30), (7, 7), 2)
+    pygame.draw.line(s, (50, 110, 50), (3, 18), (7, 14), 1)
+    return s
+
+
+def make_tornante_sign_sprite():
+    """Kehren-Schild mit Kurven-Pfeil — Berg-Etappen."""
+    s = pygame.Surface((24, 32), pygame.SRCALPHA)
+    pygame.draw.rect(s, (110, 75, 40), (11, 16, 2, 16))
+    pygame.draw.rect(s, (250, 250, 240), (0, 6, 24, 12))
+    pygame.draw.rect(s, (60, 60, 70), (0, 6, 24, 12), 1)
+    pygame.draw.arc(s, (220, 60, 60), (4, 8, 16, 9), 0.2, math.pi - 0.2, 2)
+    pygame.draw.polygon(s, (220, 60, 60), [(4, 11), (1, 14), (7, 14)])
+    return s
+
+
+def make_mountain_goat_sprite():
+    """Bergziege am Hang — selten, aber sehr Alpin-typisch."""
+    s = pygame.Surface((22, 16), pygame.SRCALPHA)
+    body = (225, 220, 210)
+    horn = (60, 50, 40)
+    pygame.draw.rect(s, body, (4, 6, 12, 6))
+    pygame.draw.rect(s, body, (15, 4, 5, 4))
+    pygame.draw.polygon(s, horn, [(18, 4), (20, 0), (19, 4)])
+    pygame.draw.polygon(s, horn, [(16, 4), (16, 0), (17, 4)])
+    for x in (5, 8, 12, 14):
+        pygame.draw.rect(s, (80, 70, 50), (x, 12, 1, 4))
+    pygame.draw.rect(s, (50, 40, 30), (4, 8, 1, 1))  # Auge
+    return s
+
+
+def make_ski_lift_sprite():
+    """Skilift-Mast mit Gondel — alpine Strecken."""
+    s = pygame.Surface((16, 44), pygame.SRCALPHA)
+    pygame.draw.rect(s, (130, 130, 135), (7, 8, 2, 36))
+    pygame.draw.line(s, (40, 40, 50), (1, 6), (14, 4), 1)
+    pygame.draw.rect(s, (220, 60, 60), (4, 10, 8, 6))
+    pygame.draw.rect(s, (40, 50, 70), (4, 10, 8, 1))
+    pygame.draw.rect(s, (140, 180, 220), (5, 12, 6, 2))
+    return s
+
+
+def make_chalet_sprite():
+    """Holzchalet mit Schneehäubchen — Hochalpen."""
+    s = pygame.Surface((30, 32), pygame.SRCALPHA)
+    body = (170, 120, 65)
+    body_dark = (120, 80, 45)
+    roof = (90, 70, 60)
+    snow = (240, 245, 250)
+    pygame.draw.polygon(s, roof, [(0, 18), (15, 4), (30, 18)])
+    pygame.draw.polygon(s, snow, [(2, 17), (15, 8), (28, 17)])
+    pygame.draw.rect(s, body, (4, 18, 22, 14))
+    for y in (20, 24, 28):
+        pygame.draw.rect(s, body_dark, (4, y, 22, 1))
+    pygame.draw.rect(s, (60, 90, 130), (11, 22, 8, 6))
+    pygame.draw.rect(s, (40, 40, 50), (11, 22, 8, 6), 1)
+    return s
+
+
+def make_old_stone_wall_sprite():
+    """Alte Trockensteinmauer — herbstliche Streckenränder."""
+    s = pygame.Surface((32, 14), pygame.SRCALPHA)
+    pygame.draw.rect(s, (170, 155, 130), (0, 4, 32, 10))
+    for x, y in ((2, 6), (10, 6), (18, 6), (26, 6),
+                 (6, 10), (14, 10), (22, 10), (28, 10)):
+        pygame.draw.rect(s, (130, 115, 95), (x, y, 4, 3))
+    return s
+
+
 def make_helicopter_shadow_sprite():
     """Schwebender Heli-Schatten: dunkler Blob mit Heckausleger und vier
     Rotorblättern. Semi-transparent, damit der Asphalt durchschimmert."""
@@ -949,6 +1124,19 @@ def make_decor_sprites():
         "diablo":        make_diablo_spectator_sprite(),
         "drummer":       make_drummer_spectator_sprite(),
         "km_sign":       make_km_sign_sprite(),  # Default; richtige Texte in run_race
+        "beach_hut":     make_beach_hut_sprite(),
+        "boat":          make_boat_sprite(),
+        "frittenbude":   make_frittenbude_sprite(),
+        "belgian_flag":  make_belgian_flag_sprite(),
+        "brick_church":  make_brick_church_sprite(),
+        "vineyard":      make_vineyard_post_sprite(),
+        "stone_house":   make_stone_house_sprite(),
+        "sunflower":     make_sunflower_sprite(),
+        "tornante":      make_tornante_sign_sprite(),
+        "goat":          make_mountain_goat_sprite(),
+        "ski_lift":      make_ski_lift_sprite(),
+        "chalet":        make_chalet_sprite(),
+        "stone_wall":    make_old_stone_wall_sprite(),
     }
     for i, col in enumerate(SPECTATOR_COLORS):
         d[f"spec_{i}_up"] = make_spectator_sprite(col, arms_up=True)
@@ -1849,6 +2037,10 @@ async def run_menu(screen, save_data, fonts):
             True, HUD_DIM,
         )
         screen.blit(hint, (W // 2 - hint.get_width() // 2, H - 26))
+        # Versionsnummer unten rechts — wird pro Push hochgezaehlt, damit man
+        # im Browser-Cache vs. Live-Build vergleichen kann.
+        ver = fonts["small"].render(VERSION, True, (90, 100, 120))
+        screen.blit(ver, (W - ver.get_width() - 8, H - 18))
 
         touch.draw(screen, fonts["mid"])
 
