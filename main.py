@@ -12,19 +12,54 @@ from routes import ROUTES
 IS_WEB = sys.platform == "emscripten"
 
 
+def _detect_touch():
+    """True nur auf echten Touch-Geräten (Smartphone/Tablet im Browser).
+    Steuerkreuz/Trink-Button blenden wir am Desktop-Browser aus, weil sie
+    sonst nur Platz wegnehmen und keinen Nutzen haben."""
+    if not IS_WEB:
+        return False
+    try:
+        from js import navigator  # type: ignore
+        try:
+            if int(navigator.maxTouchPoints) > 0:
+                return True
+        except Exception:
+            pass
+        try:
+            ua = str(navigator.userAgent).lower()
+            return any(kw in ua for kw in ("mobile", "android", "iphone", "ipad", "ipod"))
+        except Exception:
+            return False
+    except Exception:
+        return False
+
+
+IS_TOUCH = _detect_touch()
+
+
+def _query_viewport():
+    """Aktuelle Browser-Viewport-Größe (für mobile Reloads, wenn die URL-Bar
+    auf-/zugeht und sich H ändert). Auf Native None."""
+    if not IS_WEB:
+        return None
+    try:
+        from js import window  # type: ignore
+        return int(window.innerWidth), int(window.innerHeight)
+    except Exception:
+        return None
+
+
+def _clamp_size(w, h):
+    return max(320, min(w, 1200)), max(480, min(h, 2400))
+
+
 def _initial_size():
     """Bevorzugt das echte Browser-Viewport, damit es aufm Handy nicht
     quadratisch ausschaut. Auf dem Desktop ein vernünftiges Portrait."""
     if IS_WEB:
-        try:
-            from js import window  # type: ignore
-            w = int(window.innerWidth)
-            h = int(window.innerHeight)
-            w = max(320, min(w, 1200))
-            h = max(480, min(h, 2400))
-            return w, h
-        except Exception:
-            pass
+        v = _query_viewport()
+        if v:
+            return _clamp_size(*v)
     return 540, 960
 
 
@@ -35,6 +70,49 @@ PLAYER_Y = H // 2
 PLAYER_W, PLAYER_H = 26, 48
 HUD_H = max(96, min(H // 7, 140))
 FONT_SCALE = max(0.7, min(H / 960.0, 1.6))
+
+
+def _apply_window_size(w, h):
+    """Aktualisiert die globalen Layout-Werte. Wird beim Resize gerufen."""
+    global W, H, ROAD_WIDTH, PLAYER_Y, HUD_H, FONT_SCALE
+    W, H = _clamp_size(w, h)
+    ROAD_WIDTH = max(150, min(220, W // 3))
+    PLAYER_Y = H // 2
+    HUD_H = max(96, min(H // 7, 140))
+    FONT_SCALE = max(0.7, min(H / 960.0, 1.6))
+
+
+def _rebuild_fonts(fonts):
+    fonts["huge"]  = pygame.font.Font(None, max(28, int(64 * FONT_SCALE)))
+    fonts["big"]   = pygame.font.Font(None, max(22, int(48 * FONT_SCALE)))
+    fonts["mid"]   = pygame.font.Font(None, max(16, int(28 * FONT_SCALE)))
+    fonts["small"] = pygame.font.Font(None, max(12, int(20 * FONT_SCALE)))
+
+
+def make_fonts():
+    f = {}
+    _rebuild_fonts(f)
+    return f
+
+
+def _display_flags():
+    return 0 if IS_WEB else pygame.RESIZABLE
+
+
+def maybe_resize(screen, fonts):
+    """Falls sich Browser-Viewport oder Native-Fenster geändert haben:
+    set_mode neu, Layout-Globals und Fonts aktualisieren. Touch-Layouts
+    bauen die Szenen selbst neu."""
+    target = _query_viewport()
+    if target is None:
+        target = screen.get_size()
+    nw, nh = _clamp_size(*target)
+    if nw == W and nh == H:
+        return screen, False
+    _apply_window_size(nw, nh)
+    screen = pygame.display.set_mode((W, H), _display_flags())
+    _rebuild_fonts(fonts)
+    return screen, True
 PX_PER_M = 25
 MIN_SPEED = 8
 MAX_SPEED_BASE = 58
@@ -65,6 +143,28 @@ CYAN = (80, 220, 220)
 
 SAVE_FILE = Path(__file__).parent / "save.json"
 WEB_SAVE_KEY = "radgame_save_v1"
+
+DIFFICULTY_ORDER = ["easy", "medium", "hard"]
+DIFFICULTY_PRESETS = {
+    "easy":   {"label": "Leicht", "opp_speed_mult": 0.92, "drain_mult": 0.82, "obstacle_mult": 0.7},
+    "medium": {"label": "Mittel", "opp_speed_mult": 1.00, "drain_mult": 1.00, "obstacle_mult": 1.0},
+    "hard":   {"label": "Schwer", "opp_speed_mult": 1.08, "drain_mult": 1.18, "obstacle_mult": 1.3},
+}
+
+
+def difficulty_preset(save_data):
+    key = save_data.get("difficulty", "medium")
+    return DIFFICULTY_PRESETS.get(key, DIFFICULTY_PRESETS["medium"])
+
+
+def cycle_difficulty(save_data):
+    cur = save_data.get("difficulty", "medium")
+    if cur not in DIFFICULTY_ORDER:
+        cur = "medium"
+    nxt = DIFFICULTY_ORDER[(DIFFICULTY_ORDER.index(cur) + 1) % len(DIFFICULTY_ORDER)]
+    save_data["difficulty"] = nxt
+    save_state(save_data)
+    return nxt
 
 
 def _web_storage_get():
@@ -160,6 +260,9 @@ def load_save():
     data.setdefault("points", 0)
     data.setdefault("races", 0)
     data.setdefault("best", {})
+    data.setdefault("difficulty", "medium")
+    if data["difficulty"] not in DIFFICULTY_ORDER:
+        data["difficulty"] = "medium"
     data.setdefault("owned", default_owned())
     data.setdefault("equipped", default_equipped())
     for t in ITEM_TYPES:
@@ -693,8 +796,10 @@ class TouchPad:
                     out.add(btn["key"])
         return out
 
-    def key_at(self, pos):
+    def key_at(self, pos, only=None):
         for btn in self.buttons:
+            if only is not None and btn["key"] not in only:
+                continue
             if btn["rect"].collidepoint(pos):
                 return btn["key"]
         return None
@@ -1235,51 +1340,63 @@ def draw_player(screen, player, sprite_frames):
         screen.blit(frame, (x, y))
 
 
-def draw_hud(screen, player, position, total, distance_remaining, fonts, route, recent_pickup,
-             weather_label="", strong_wind=False):
+def draw_hud(screen, player, position, total, distance_remaining, distance_target,
+             fonts, route, recent_pickup, weather_label="", strong_wind=False):
     h = HUD_H
-    pygame.draw.rect(screen, HUD_BG, (0, H - h, W, h))
-    pygame.draw.rect(screen, (40, 50, 70), (0, H - h, W, 2))
+    # HUD sitzt jetzt oben, damit Daumen am Smartphone die Werte nicht verdecken.
+    pygame.draw.rect(screen, HUD_BG, (0, 0, W, h))
+    pygame.draw.rect(screen, (40, 50, 70), (0, h - 2, W, 2))
+
+    # Streckenfortschritt: dünner Balken quer über die volle Breite, ganz oben.
+    pbar_h = 6
+    progress = 0.0
+    if distance_target > 0:
+        progress = max(0.0, min(1.0, 1.0 - distance_remaining / distance_target))
+    pygame.draw.rect(screen, (30, 35, 48), (0, 0, W, pbar_h))
+    pygame.draw.rect(screen, CYAN, (0, 0, int(W * progress), pbar_h))
 
     speed_int = int(round(player.speed))
     speed_text = fonts["big"].render(f"{speed_int}", True, WHITE)
-    screen.blit(speed_text, (20, H - h + 18))
+    screen.blit(speed_text, (20, pbar_h + 6))
     unit = fonts["small"].render("km/h", True, HUD_DIM)
-    screen.blit(unit, (20 + speed_text.get_width() + 6, H - h + 42))
+    screen.blit(unit, (20 + speed_text.get_width() + 6, pbar_h + 30))
 
-    bar_x, bar_y, bar_w, bar_h_ = 20, H - 30, 240, 14
+    bar_w = max(120, min(220, W // 3))
+    bar_h_ = 12
+    bar_x = 20
+    bar_y = h - 28
     pygame.draw.rect(screen, (30, 35, 48), (bar_x, bar_y, bar_w, bar_h_), border_radius=4)
     pct = player.energy / player.max_energy
     color = GREEN if pct > 0.5 else (YELLOW if pct > 0.2 else RED)
     pygame.draw.rect(screen, color, (bar_x, bar_y, int(bar_w * pct), bar_h_), border_radius=4)
     label = fonts["small"].render(f"Energie {int(player.energy)}/{player.max_energy}", True, HUD_TEXT)
-    screen.blit(label, (bar_x, bar_y - 18))
+    screen.blit(label, (bar_x, bar_y - 16))
 
-    bx = 300
+    bx = bar_x + bar_w + 14
     for i in range(player.max_bottles):
         c = BLUE if i < player.water else (50, 60, 80)
-        pygame.draw.rect(screen, c, (bx + i * 22, H - 30, 18, 14), border_radius=3)
-    screen.blit(fonts["small"].render("Wasser (Leertaste)", True, HUD_TEXT), (bx, H - 48))
+        pygame.draw.rect(screen, c, (bx + i * 18, bar_y, 14, bar_h_), border_radius=2)
+    screen.blit(fonts["small"].render("Wasser", True, HUD_TEXT), (bx, bar_y - 16))
 
     pos_text = fonts["mid"].render(f"Platz {position}/{total}", True, WHITE)
-    screen.blit(pos_text, (W - pos_text.get_width() - 20, H - h + 16))
-    d_text = fonts["small"].render(f"{int(distance_remaining)} m bis Ziel", True, HUD_DIM)
-    screen.blit(d_text, (W - d_text.get_width() - 20, H - h + 50))
+    screen.blit(pos_text, (W - pos_text.get_width() - 20, pbar_h + 4))
     lvl_text = fonts["small"].render(f"Lvl {player.level}", True, YELLOW)
-    screen.blit(lvl_text, (W - lvl_text.get_width() - 20, H - h + 74))
+    screen.blit(lvl_text, (W - lvl_text.get_width() - 20, pbar_h + 34))
 
-    cond_x = W // 2 - 80
+    cond_x = W // 2 - 56
+    indicators = []
     if strong_wind:
-        screen.blit(fonts["small"].render("Sturm", True, ORANGE), (cond_x, H - h + 18))
+        indicators.append(("Sturm", ORANGE))
     elif route.get("wind", 0) > 0.4:
-        screen.blit(fonts["small"].render("Wind", True, HUD_DIM), (cond_x, H - h + 18))
+        indicators.append(("Wind", HUD_DIM))
     if route.get("heat", 0) > 0.5:
-        screen.blit(fonts["small"].render("Hitze", True, HUD_DIM), (cond_x, H - h + 40))
+        indicators.append(("Hitze", HUD_DIM))
     if weather_label:
-        col = BLUE if weather_label == "Regen" else WHITE
-        screen.blit(fonts["small"].render(weather_label, True, col), (cond_x, H - h + 62))
+        indicators.append((weather_label, BLUE if weather_label == "Regen" else WHITE))
     if player.on_grass:
-        screen.blit(fonts["small"].render("WIESE!", True, ORANGE), (cond_x, H - h + 84))
+        indicators.append(("WIESE!", ORANGE))
+    for i, (txt, col) in enumerate(indicators[:3]):
+        screen.blit(fonts["small"].render(txt, True, col), (cond_x, pbar_h + 6 + i * 16))
 
     if recent_pickup:
         kind, t = recent_pickup
@@ -1293,28 +1410,47 @@ def draw_hud(screen, player, position, total, distance_remaining, fonts, route, 
             surf = fonts["mid"].render(txt, True, YELLOW)
             alpha = max(60, min(255, int(t * 200)))
             surf.set_alpha(alpha)
-            screen.blit(surf, (W // 2 - surf.get_width() // 2, H - h - 36))
+            screen.blit(surf, (W // 2 - surf.get_width() // 2, h + 6))
 
 
 async def run_menu(screen, save_data, fonts):
     clock = pygame.time.Clock()
     cursor = 0
     row_h = 64
-    options_count = len(ROUTES) + 1  # shop is index 0
-    list_x = 20
-    list_w = W - 96
-    list_y0 = 140
-    visible = max(4, min(options_count, (H - list_y0 - 60) // row_h))
-    touch = TouchPad([
-        {"key": "up",   "rect": pygame.Rect(W - 70, list_y0,                       62, 62), "icon":  "up"},
-        {"key": "down", "rect": pygame.Rect(W - 70, list_y0 + visible * row_h - 68, 62, 62), "icon":  "down"},
-        {"key": "esc",  "rect": pygame.Rect(W - 90, 10,                            80, 40), "label": "Esc"},
-    ])
+    # Layout: 0 = Schwierigkeit, 1 = Shop, 2..N+1 = Routen.
+    options_count = len(ROUTES) + 2
+
+    def activate(idx):
+        if idx == 0:
+            cycle_difficulty(save_data)
+            return None
+        if idx == 1:
+            return ("shop", None)
+        return ("race", ROUTES[idx - 2])
+
+    def build_layout():
+        list_x = 20
+        list_w = W - (96 if IS_TOUCH else 40)
+        list_y0 = 140
+        visible = max(4, min(options_count, (H - list_y0 - 60) // row_h))
+        if IS_TOUCH:
+            touch = TouchPad([
+                {"key": "up",   "rect": pygame.Rect(W - 70, list_y0,                       62, 62), "icon":  "up"},
+                {"key": "down", "rect": pygame.Rect(W - 70, list_y0 + visible * row_h - 68, 62, 62), "icon":  "down"},
+            ])
+        else:
+            touch = TouchPad([])
+        return list_x, list_w, list_y0, visible, touch
+
+    list_x, list_w, list_y0, visible, touch = build_layout()
     star_full = make_star_sprite(filled=True)
     star_empty = make_star_sprite(filled=False)
     row_rects = []
     while True:
         clock.tick(FPS)
+        screen, resized = maybe_resize(screen, fonts)
+        if resized:
+            list_x, list_w, list_y0, visible, touch = build_layout()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return None
@@ -1328,17 +1464,15 @@ async def run_menu(screen, save_data, fonts):
                 if event.key == pygame.K_PAGEDOWN:
                     cursor = min(options_count - 1, cursor + visible)
                 if event.key in (pygame.K_RETURN, pygame.K_SPACE):
-                    if cursor == 0:
-                        return ("shop", None)
-                    return ("race", ROUTES[cursor - 1])
-                if event.key == pygame.K_ESCAPE:
-                    return None
+                    result = activate(cursor)
+                    if result is not None:
+                        return result
+                if event.key in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_a, pygame.K_d) and cursor == 0:
+                    cycle_difficulty(save_data)
             touch.handle_event(event)
             tap = event_tap_pos(event)
             if tap is not None:
                 tkey = touch.key_at(tap)
-                if tkey == "esc":
-                    return None
                 if tkey == "up":
                     cursor = (cursor - 1) % options_count
                 elif tkey == "down":
@@ -1346,9 +1480,11 @@ async def run_menu(screen, save_data, fonts):
                 else:
                     for idx, rect in row_rects:
                         if rect.collidepoint(tap):
-                            if idx == 0:
-                                return ("shop", None)
-                            return ("race", ROUTES[idx - 1])
+                            cursor = idx
+                            result = activate(idx)
+                            if result is not None:
+                                return result
+                            break
 
         screen.fill((22, 26, 40))
         title = fonts["huge"].render("RADGAME", True, WHITE)
@@ -1382,6 +1518,17 @@ async def run_menu(screen, save_data, fonts):
             sel = (i == cursor)
             row_rects.append((i, pygame.Rect(list_x, y, list_w, row_h - 6)))
             if i == 0:
+                bg = (50, 50, 70) if sel else (30, 32, 46)
+                pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
+                if sel:
+                    pygame.draw.rect(screen, CYAN, (list_x, y, list_w, row_h - 6), 2, border_radius=10)
+                cur_diff = save_data.get("difficulty", "medium")
+                cur_label = DIFFICULTY_PRESETS[cur_diff]["label"]
+                name = fonts["mid"].render(f"Schwierigkeit: {cur_label}", True, CYAN)
+                screen.blit(name, (list_x + 14, y + 4))
+                desc = fonts["small"].render("Tap / Enter / ←→: wechseln (Leicht · Mittel · Schwer)", True, HUD_DIM)
+                screen.blit(desc, (list_x + 14, y + 34))
+            elif i == 1:
                 bg = (60, 50, 30) if sel else (40, 35, 25)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -1391,7 +1538,7 @@ async def run_menu(screen, save_data, fonts):
                 desc = fonts["small"].render("Punkte ausgeben, Rad aufmotzen", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
             else:
-                r = ROUTES[i - 1]
+                r = ROUTES[i - 2]
                 bg = (40, 52, 80) if sel else (28, 32, 48)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -1416,7 +1563,7 @@ async def run_menu(screen, save_data, fonts):
                     screen.blit(spr, (sx + j * 16, sy))
                 best = save_data.get("best", {}).get(r["id"])
                 if best:
-                    b = fonts["small"].render(f"P{best}", True, YELLOW)
+                    b = fonts["small"].render(f"Best P{best}", True, YELLOW)
                     screen.blit(b, (list_x + list_w - b.get_width() - 14, y + 10))
 
         if scroll_start > 0:
@@ -1450,12 +1597,21 @@ async def run_shop(screen, save_data, fonts):
     msg_t = 0.0
     list_y0 = 110
     row_h = 44
-    visible_rows = max(6, min(22, (H - list_y0 - 60) // row_h))
-    touch = TouchPad([
-        {"key": "up",   "rect": pygame.Rect(W - 70, list_y0,                            62, 62), "icon":  "up"},
-        {"key": "down", "rect": pygame.Rect(W - 70, list_y0 + visible_rows * row_h - 68, 62, 62), "icon":  "down"},
-        {"key": "esc",  "rect": pygame.Rect(W - 90, 10,                                 80, 40), "label": "Esc"},
-    ])
+
+    def build_layout():
+        visible_rows = max(6, min(22, (H - list_y0 - 60) // row_h))
+        # Esc bleibt immer sichtbar — der Shop braucht einen klickbaren Rückweg.
+        buttons = [
+            {"key": "esc",  "rect": pygame.Rect(W - 90, 10, 80, 40), "label": "Menü"},
+        ]
+        if IS_TOUCH:
+            buttons += [
+                {"key": "up",   "rect": pygame.Rect(W - 70, list_y0,                            62, 62), "icon":  "up"},
+                {"key": "down", "rect": pygame.Rect(W - 70, list_y0 + visible_rows * row_h - 68, 62, 62), "icon":  "down"},
+            ]
+        return visible_rows, TouchPad(buttons)
+
+    visible_rows, touch = build_layout()
     item_rects = []  # [(item_list_index, Rect)]
 
     def activate_item(item):
@@ -1481,6 +1637,9 @@ async def run_shop(screen, save_data, fonts):
     while True:
         dt = clock.tick(FPS) / 1000.0
         msg_t = max(0.0, msg_t - dt)
+        screen, resized = maybe_resize(screen, fonts)
+        if resized:
+            visible_rows, touch = build_layout()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -1612,13 +1771,16 @@ async def run_race(screen, route, save_data, fonts):
     theme_data = THEMES.get(route.get("theme", "classic"), THEMES["classic"])
     set_curve_amp_mult(theme_data["curve_mult"])
 
+    preset = difficulty_preset(save_data)
     player = Player(save_data)
+    player.stats["drain_mult"] *= preset["drain_mult"]
     opp_count = 50
     # Gegner skalieren mit der Spieler-Ausrüstung: bessere Räder/Rahmen/Helm
     # erhöhen player.max_speed und damit auch das Gegner-Tempo und ihr Cap.
+    # Schwierigkeit skaliert das Gegner-Tempo zusätzlich linear.
     gear_bonus = player.stats["max_speed_bonus"]
-    base = 34 - route["difficulty"] * 1.0 + gear_bonus * 0.7
-    opp_top = 50 + gear_bonus * 0.8
+    base = (34 - route["difficulty"] * 1.0 + gear_bonus * 0.7) * preset["opp_speed_mult"]
+    opp_top = (50 + gear_bonus * 0.8) * preset["opp_speed_mult"]
     opponents = [Opponent(random.uniform(15, 110),
                           base + random.uniform(-4, 8),
                           top_speed=opp_top)
@@ -1634,7 +1796,7 @@ async def run_race(screen, route, save_data, fonts):
     next_spec_d = 25.0
     next_clutter_d = 20.0
     next_bale_t = random.uniform(2.5, 6.0)
-    spawn_density = route["obstacle_density"]
+    spawn_density = route["obstacle_density"] * preset["obstacle_mult"]
     distance_target = route["distance_m"]
 
     theme_name = route.get("theme", "classic")
@@ -1668,20 +1830,30 @@ async def run_race(screen, route, save_data, fonts):
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
 
-    btn_h = max(80, min(int(H * 0.13), 140))
-    margin = max(8, W // 60)
-    gap = max(10, W // 50)
-    btn_w = max(96, (W - 2 * margin - 2 * gap) // 3)
-    pad_y = H - HUD_H - 16 - btn_h
-    drink_h = max(40, int(H * 0.055))
-    touch = TouchPad([
-        {"key": "left",  "rect": pygame.Rect(margin, pad_y, btn_w, btn_h),                  "icon":  "left"},
-        {"key": "right", "rect": pygame.Rect(margin + btn_w + gap, pad_y, btn_w, btn_h),    "icon":  "right"},
-        {"key": "accel", "rect": pygame.Rect(W - margin - btn_w, pad_y, btn_w, btn_h),      "icon":  "up"},
-        {"key": "drink", "rect": pygame.Rect(margin, pad_y - drink_h - 8, W - 2 * margin, drink_h), "label": "TRINK"},
-        {"key": "esc",   "rect": pygame.Rect(W - 90, 10, 80, 40),                           "label": "Esc"},
-        {"key": "menu",  "rect": pygame.Rect(W // 2 - 130, int(H * 0.66), 260, 70),         "label": "Zurück"},
-    ])
+    def build_touch():
+        # Zurück (post-Finish) und Menü-Knopf sind UI-Affordances und immer
+        # sichtbar — Steuerkreuz und TRINK nur, wenn wir wirklich Touch sind.
+        menu_w = min(260, W - 40)
+        buttons = [
+            {"key": "esc",  "rect": pygame.Rect(W - 90, HUD_H + 10, 80, 40),                                "label": "Menü"},
+            {"key": "menu", "rect": pygame.Rect(W // 2 - menu_w // 2, int(H * 0.5), menu_w, 70),            "label": "Zurück zum Menü"},
+        ]
+        if IS_TOUCH:
+            btn_h = max(80, min(int(H * 0.13), 140))
+            margin = max(8, W // 60)
+            gap = max(10, W // 50)
+            btn_w = max(96, (W - 2 * margin - 2 * gap) // 3)
+            pad_y = H - 16 - btn_h
+            drink_h = max(40, int(H * 0.055))
+            buttons += [
+                {"key": "left",  "rect": pygame.Rect(margin, pad_y, btn_w, btn_h),                          "icon":  "left"},
+                {"key": "right", "rect": pygame.Rect(margin + btn_w + gap, pad_y, btn_w, btn_h),            "icon":  "right"},
+                {"key": "accel", "rect": pygame.Rect(W - margin - btn_w, pad_y, btn_w, btn_h),              "icon":  "up"},
+                {"key": "drink", "rect": pygame.Rect(margin, pad_y - drink_h - 8, W - 2 * margin, drink_h), "label": "TRINK"},
+            ]
+        return TouchPad(buttons)
+
+    touch = build_touch()
 
     elapsed = 0.0
     wind_phase = 0.0
@@ -1698,6 +1870,9 @@ async def run_race(screen, route, save_data, fonts):
         dt = clock.tick(FPS) / 1000.0
         if dt > 1 / 20:
             dt = 1 / 20
+        screen, resized = maybe_resize(screen, fonts)
+        if resized:
+            touch = build_touch()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -1715,13 +1890,19 @@ async def run_race(screen, route, save_data, fonts):
             touch.handle_event(event)
             tap = event_tap_pos(event)
             if tap is not None:
-                key = touch.key_at(tap)
-                if key == "esc":
-                    return
-                if state == "racing" and key == "drink":
-                    player.drink()
-                if state == "finished" and key == "menu":
-                    return
+                # Im Finish-Overlay nur Zurück/Menü zulassen, sonst klaut der
+                # darunterliegende TRINK/accel-Button den Klick (vorher musste
+                # man oft mehrmals tippen, bis es geklappt hat).
+                if state == "finished":
+                    key = touch.key_at(tap, only={"menu", "esc"})
+                    if key in ("menu", "esc"):
+                        return
+                else:
+                    key = touch.key_at(tap)
+                    if key == "esc":
+                        return
+                    if key == "drink":
+                        player.drink()
 
         keys = pygame.key.get_pressed()
         pressed_touch = touch.pressed_keys() if state == "racing" else set()
@@ -1763,11 +1944,15 @@ async def run_race(screen, route, save_data, fonts):
             if picked:
                 recent_pickup = picked[-1]
                 recent_pickup_t = 1.5
-            obstacles[:] = [o for o in obstacles if o.distance > player.distance - 8]
+            # Sichtbar bis sie unten aus dem Bild fallen. Spieler sitzt bei
+            # PLAYER_Y, die Welt rollt nach unten — also (H - PLAYER_Y) / PX_PER_M
+            # Meter passen unter den Spieler. Plus etwas Reserve für hohe Sprites.
+            cull_behind = (H - PLAYER_Y) / PX_PER_M + 4
+            obstacles[:] = [o for o in obstacles if o.distance > player.distance - cull_behind]
             goodies[:] = [g for g in goodies
-                          if not g.collected and g.distance > player.distance - 8]
-            decor[:] = [d for d in decor if d.distance > player.distance - 8]
-            bales[:] = [b for b in bales if b.alive and b.distance > player.distance - 8]
+                          if not g.collected and g.distance > player.distance - cull_behind]
+            decor[:] = [d for d in decor if d.distance > player.distance - cull_behind]
+            bales[:] = [b for b in bales if b.alive and b.distance > player.distance - cull_behind]
             if player.distance >= distance_target:
                 state = "finished"
                 final_position = player_position(player, opponents)
@@ -1824,8 +2009,8 @@ async def run_race(screen, route, save_data, fonts):
         pos = player_position(player, opponents)
         remaining = max(0, distance_target - player.distance)
         rp = (recent_pickup, recent_pickup_t) if recent_pickup else None
-        draw_hud(screen, player, pos, len(opponents) + 1, remaining, fonts, route, rp,
-                 weather_label=weather_label, strong_wind=strong_wind)
+        draw_hud(screen, player, pos, len(opponents) + 1, remaining, distance_target,
+                 fonts, route, rp, weather_label=weather_label, strong_wind=strong_wind)
 
         if state == "racing":
             touch.draw(screen, fonts["mid"],
@@ -1861,19 +2046,17 @@ async def run_race(screen, route, save_data, fonts):
 async def main():
     pygame.init()
     pygame.display.set_caption("Radgame")
-    screen = pygame.display.set_mode((W, H))
-    fonts = {
-        "huge":  pygame.font.Font(None, max(28, int(64 * FONT_SCALE))),
-        "big":   pygame.font.Font(None, max(22, int(48 * FONT_SCALE))),
-        "mid":   pygame.font.Font(None, max(16, int(28 * FONT_SCALE))),
-        "small": pygame.font.Font(None, max(12, int(20 * FONT_SCALE))),
-    }
+    pygame.display.set_mode((W, H), _display_flags())
+    fonts = make_fonts()
     while True:
         save_data = load_save()
+        # get_surface() liefert die aktuelle Display-Surface, auch nach Resize.
+        screen = pygame.display.get_surface()
         choice = await run_menu(screen, save_data, fonts)
         if choice is None:
             break
         kind, payload = choice
+        screen = pygame.display.get_surface()
         if kind == "shop":
             await run_shop(screen, save_data, fonts)
         elif kind == "race":
