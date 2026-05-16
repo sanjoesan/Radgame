@@ -52,7 +52,38 @@ def patch(p: Path) -> None:
     # -> ohne Re-Sync rechnet pygbag mit altem fb_ar und letterboxt grau.
     # Wir warten ein paar Frames per rAF, weil innerHeight direkt im Event
     # noch den alten Wert hat.
+    # Audio-Unlock fuer Mobile: pygbag mit ume_block=0 setzt MM.UME sofort
+    # auf true (pythons.js Zeile 1149) und ueberspringt seine eingebaute
+    # Gesture-Wait + Audio-Unlock-Logik. Chrome Android (und teils iOS)
+    # erstellt jeden AudioContext im 'suspended'-State, bis er INNERHALB
+    # eines User-Gestures explizit .resume() bekommt. SDL2's Mixer-AC
+    # wird aber lange vor dem ersten Tap gebaut -> stumm.
+    #
+    # Wir monkey-patchen den AudioContext-Constructor, tracken jeden
+    # erzeugten AC, und resumen bei jedem Touch/Click alle suspendierten.
+    # Muss BEVOR pygbag's pythons.js laeuft injiziert werden — der inline-
+    # Script-Block hier wird vor `async defer` pythons.js ausgefuehrt.
     inject = needle + (
+        "\n;(function(){"
+        "\n    const _Ctx = window.AudioContext || window.webkitAudioContext;"
+        "\n    if (!_Ctx) return;"
+        "\n    const tracked = [];"
+        "\n    class Patched extends _Ctx {"
+        "\n        constructor(...args){ super(...args); tracked.push(this); }"
+        "\n    }"
+        "\n    window.AudioContext = Patched;"
+        "\n    if (window.webkitAudioContext) window.webkitAudioContext = Patched;"
+        "\n    function resumeAll(){"
+        "\n        for (const c of tracked) {"
+        "\n            try { if (c.state === 'suspended') c.resume().catch(()=>{}); } catch(e){}"
+        "\n        }"
+        "\n        try { if (window.Module && Module.SDL2 && Module.SDL2.audioContext) "
+        "Module.SDL2.audioContext.resume(); } catch(e){}"
+        "\n    }"
+        "\n    ['touchstart','touchend','mousedown','click','keydown'].forEach(function(ev){"
+        "\n        document.addEventListener(ev, resumeAll, { passive: true });"
+        "\n    });"
+        "\n})();"
         "\nwindow.__radgame_sync_fb = function(){"
         "\n    const w = Math.max(320, window.innerWidth|0);"
         "\n    const h = Math.max(480, window.innerHeight|0);"
