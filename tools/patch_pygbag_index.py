@@ -33,6 +33,15 @@ def patch(p: Path) -> None:
         'viewport-fit=cover, user-scalable=no">',
     )
 
+    # gui_divider=2 ist pygbag-Default und halbiert die Canvas-Anzeigegroesse
+    # via window_canvas_adjust. index.html setzt das nach Python-Init zwar auf
+    # 1, aber das passiert nach `await shell.source(main)` — und main()
+    # blockiert ewig im Game-Loop, also feuert die Zeile nie. Schon im
+    # Config-Dict auf 1 zwingen.
+    if "gui_divider : 2," not in html:
+        raise SystemExit("Patch-Anker gui_divider nicht gefunden")
+    html = html.replace("gui_divider : 2,", "gui_divider : 1,")
+
     needle = 'fb_height : "720"\n}'
     if needle not in html:
         raise SystemExit(

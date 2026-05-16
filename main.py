@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v23"
+VERSION = "v24"
 
 
 def _detect_touch():
@@ -3660,6 +3660,12 @@ async def main():
     pygame.init()
     pygame.display.set_caption("Radgame")
     pygame.display.set_mode((W, H), _display_flags())
+    # pygbag's initiales window_resize() lief vor unserem set_mode mit dem
+    # 1x1-HTML-Default als Aspect — das Canvas war quadratisch dargestellt.
+    # Jetzt wo die Canvas-Attribute korrekt sind: pygbag's Layout-Recompute
+    # explizit anstossen, sonst bleibt das alte CSS-width/height kleben bis
+    # zum naechsten resize-Event.
+    _sync_pygbag_layout(W, H)
     fonts = make_fonts()
     # Mute-Status + Volume aus dem Save laden — Musik startet so wie der
     # User sie zuletzt eingestellt hatte.
