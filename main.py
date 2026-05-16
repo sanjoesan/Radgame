@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v20"
+VERSION = "v21"
 
 
 def _detect_touch():
@@ -421,9 +421,9 @@ _MUSIC_STATE = {"sound": None, "muted": False}
 
 
 VOLUME_LEVELS = [
-    ("leise",  "Leise",  0.16),
-    ("mittel", "Mittel", 0.32),
-    ("laut",   "Laut",   0.48),
+    ("leise",  "Leise",  0.28),
+    ("mittel", "Mittel", 0.55),
+    ("laut",   "Laut",   0.82),
 ]
 VOLUME_ORDER = [k for k, _, _ in VOLUME_LEVELS]
 DEFAULT_VOLUME_KEY = "mittel"
@@ -678,6 +678,21 @@ def sfx_is_muted(save_data):
     return bool(save_data.get("sfx_muted", False))
 
 
+# Per-SFX-Gain: gleicht aus, dass unterschiedliche Sounds bei gleichem Peak
+# unterschiedlich laut wahrgenommen werden (Crash hat viel sustained Energie,
+# Klatscher nur kurze Spitzen). Werte > 1.0 erlaubt, da set_volume final clamped.
+_SFX_GAIN = {
+    "pickup":    0.85,
+    "drink":     0.85,
+    "hit_small": 0.55,
+    "hit_big":   0.65,
+    "finish":    1.0,
+    "clap_one":  1.5,
+    "applause":  1.4,
+    "wuhuu":     1.4,
+}
+
+
 def play_sfx(name, save_data, scale=1.0):
     """Spielt einen SFX mit der aktuellen Lautstaerke-Einstellung. SFX-Mute
     und Musik-Mute sind unabhaengig — beide werden separat geprueft. Wenn
@@ -686,8 +701,9 @@ def play_sfx(name, save_data, scale=1.0):
     if not snd or sfx_is_muted(save_data):
         return
     vol = _volume_value(save_data.get("music_volume", DEFAULT_VOLUME_KEY))
+    gain = _SFX_GAIN.get(name, 1.0)
     try:
-        snd.set_volume(min(1.0, vol * scale))
+        snd.set_volume(min(1.0, vol * scale * gain))
         snd.play()
     except Exception:
         pass
