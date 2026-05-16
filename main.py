@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v18"
+VERSION = "v19"
 
 
 def _detect_touch():
@@ -608,26 +608,39 @@ def _sfx_init(sr):
         finish.extend(_sfx_chirp(f, f, 0.10, sr, "square", 0.32))
     finish.extend(_sfx_chirp(_NOTE_FREQS["C6"], _NOTE_FREQS["C6"], 0.55, sr, "square", 0.34))
     _SFX["finish"] = _samples_to_sound(finish)
-    # Crowd-Cheer: 1.1s Noise-Roar mit Swell, ueberlappt sich beim haeufigen
-    # Triggern zu einer durchgehenden Tribuenen-Wand.
-    n = int(1.1 * sr)
-    cheer = []
+    # Applaus: viele kurze, scharfe Noise-Knatscher ueberlagert. Jeder
+    # einzelne ist ein 1-2ms-Burst mit exp. Decay (klingt wie ein Klatsch),
+    # ueber 1.0s verteilt klingt's nach Menge.
+    n = int(1.0 * sr)
+    appl = [0.0] * n
+    n_claps = max(10, int(1.0 * 32))  # ~32 Klatscher pro Sekunde
+    for _ in range(n_claps):
+        pos = random.randint(0, n - 1)
+        clap_n = random.randint(40, 90)
+        amp = random.uniform(0.18, 0.42)
+        for i in range(clap_n):
+            if pos + i >= n:
+                break
+            env = math.exp(-i / 18)  # sehr schneller Decay
+            appl[pos + i] += (random.random() * 2 - 1) * amp * env
+    # Hauptenvelope: Swell rein, abklingen raus
     for i in range(n):
-        v = (random.random() * 2 - 1) * 0.42
         t = i / max(1, n - 1)
-        # Schneller Anstieg, Plateau mit leichtem Wabbern, langes Abklingen
-        if t < 0.12:
-            env = t / 0.12
-        elif t > 0.7:
-            env = max(0.0, (1.0 - t) / 0.3)
-        else:
-            env = 0.85 + 0.15 * math.sin(t * 18)
-        cheer.append(v * env)
-    _SFX["cheer"] = _samples_to_sound(cheer)
-    # Whoooo — pitched Jubel, abwechslungsreicher als blosses Rauschen
-    whoo = _sfx_chirp(280, 540, 0.32, sr, "triangle", 0.30) + \
-           _sfx_chirp(540, 380, 0.28, sr, "triangle", 0.24)
-    _SFX["whoo"] = _samples_to_sound(whoo)
+        if t < 0.08:
+            appl[i] *= t / 0.08
+        elif t > 0.75:
+            appl[i] *= max(0.0, (1.0 - t) / 0.25)
+    _SFX["applause"] = _samples_to_sound(appl)
+    # Wuhuu — zweisilbiger Triangle-Pitch: kurzes "Wu" tief, "huu" hoch und
+    # zurueck. Klingt wie ein Fan-Schrei.
+    wuhuu = (
+        _sfx_chirp(220, 260, 0.06, sr, "triangle", 0.20) +
+        _sfx_chirp(380, 560, 0.10, sr, "triangle", 0.32) +
+        _sfx_chirp(560, 560, 0.08, sr, "triangle", 0.32) +
+        _sfx_chirp(560, 380, 0.12, sr, "triangle", 0.24) +
+        _sfx_chirp(380, 280, 0.10, sr, "triangle", 0.16)
+    )
+    _SFX["wuhuu"] = _samples_to_sound(wuhuu)
 
 
 def sfx_toggle_mute(save_data):
@@ -3097,9 +3110,8 @@ async def run_race(screen, route, save_data, fonts):
     heli_y = 0.0
     heli_vx = 0.0
     confetti = []
-    confetti_extra_t = 0.0       # Nachburst-Timer fuers Streumuster
-    cheer_t = 0.0                # Crowd-Roar-Timer in der Flamme-Rouge-Zone
-    ambient_cheer_t = random.uniform(3.0, 5.0)  # leiser Hintergrund-Murmel
+    confetti_extra_t = 0.0  # Nachburst-Timer fuers Streumuster
+    cheer_t = 0.0           # Naechster Applaus-/Wuhuu-Burst
     spawn_density = route["obstacle_density"] * preset["obstacle_mult"]
     distance_target = route["distance_m"]
 
@@ -3373,25 +3385,27 @@ async def run_race(screen, route, save_data, fonts):
                     speed_kmh=max(player.speed - random.uniform(6, 12), 22),
                     sprite=random.choice(team_car_sprites),
                 ))
-            # Tribuenen: Hintergrund-Murmeln das ganze Rennen ueber, in der
-            # Flamme-Rouge-Zone dann lautes, dichtes Anfeuern mit Whoo-Mix.
-            to_finish = distance_target - player.distance
-            ambient_cheer_t -= dt
-            if ambient_cheer_t <= 0:
-                play_sfx("cheer", save_data, scale=0.35)
-                ambient_cheer_t = random.uniform(2.8, 5.5)
-            if 0 < to_finish < 100:
-                cheer_t -= dt
-                if cheer_t <= 0:
-                    # Naeher am Ziel = lauter und haeufiger.
-                    intensity = 1.0 + max(0.0, 1.0 - to_finish / 100) * 0.4
-                    if random.random() < 0.35:
-                        play_sfx("whoo", save_data, scale=intensity)
-                    else:
-                        play_sfx("cheer", save_data, scale=intensity)
-                    cheer_t = random.uniform(0.45, 1.0)
-            else:
-                cheer_t = 0.25  # gleich bei Eintritt feuern
+            # Klatschen + Wuhuu, sobald Zuschauer um den Spieler herum sind.
+            # Zaehlen statt fixer Zone — am Start der Flamme-Rouge-Wand wird's
+            # automatisch lauter und haeufiger.
+            near_count = 0
+            for d in decor:
+                if abs(d.distance - player.distance) < 6:
+                    k = d.kind
+                    if k.startswith("spec_") or k in ("diablo", "drummer"):
+                        near_count += 1
+            cheer_t -= dt
+            if cheer_t <= 0 and near_count >= 3:
+                intensity = min(1.5, 0.45 + near_count / 18)
+                if random.random() < 0.22:
+                    play_sfx("wuhuu", save_data, scale=intensity)
+                else:
+                    play_sfx("applause", save_data, scale=intensity)
+                # Dichtere Wand → kuerzeres Intervall (min 0.35s).
+                base = max(0.35, 1.6 - near_count / 14)
+                cheer_t = random.uniform(base, base * 1.7)
+            elif cheer_t <= 0:
+                cheer_t = 0.4
             # Heli-Schatten driftet quer über den Bildschirm. Außerhalb des
             # Renn-Geschehens, also reine Screen-Animation.
             if heli_active:
@@ -3463,8 +3477,8 @@ async def run_race(screen, route, save_data, fonts):
                 confetti.extend(spawn_confetti(160))
                 confetti_extra_t = 1.2
                 play_sfx("finish", save_data)
-                play_sfx("cheer", save_data, scale=1.5)
-                play_sfx("whoo", save_data, scale=1.3)
+                play_sfx("applause", save_data, scale=1.5)
+                play_sfx("wuhuu", save_data, scale=1.3)
 
         # Konfetti animiert in jedem State weiter — wir wollen das auch nach
         # dem Zieleinlauf sehen.
