@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v12"
+VERSION = "v13"
 
 
 def _detect_touch():
@@ -346,8 +346,11 @@ THEMES = {
         "grass":   (110, 160, 90),
         "road":    (75, 75, 85),
         "edge":    (230, 225, 200),
+        # Boote nicht in den Decor-Pool — der platziert am Strassenrand auf
+        # Wiese/Sand, also wuerden sie auf Land "stehen". Sehen wir uns als
+        # Landmark/Hafenszene fuer eine spaetere Coast-Erweiterung an.
         "decor":   ["palm", "palm", "palm", "palm", "bush", "bush",
-                    "beach_hut", "beach_hut", "boat", "oak", "rock_small"],
+                    "beach_hut", "beach_hut", "oak", "rock_small"],
         "decor_density": 1.6,
         "clutter": ["grass_coast", "grass_coast", "grass_coast", "rock_tiny",
                     "flower_yellow", "flower_white"],
@@ -1789,6 +1792,63 @@ class Decor:
         self.kind = kind
 
 
+CONFETTI_COLORS = [
+    (255, 220, 60),  (235, 60, 60),   (60, 130, 235),
+    (60, 200, 110),  (235, 80, 180),  (245, 140, 50),
+    (160, 80, 230),  (250, 250, 250),
+]
+
+
+class Confetto:
+    """Konfetti-Partikel: schiesst beim Zielueberqueren in die Luft,
+    fliegt parabelfoermig zurueck zur Erde."""
+
+    __slots__ = ("x", "y", "vx", "vy", "color", "size", "age", "life", "gravity")
+
+    def __init__(self, x, y, vx, vy, color):
+        self.x = x
+        self.y = y
+        self.vx = vx
+        self.vy = vy
+        self.color = color
+        self.size = random.randint(3, 5)
+        self.age = 0.0
+        self.life = random.uniform(2.6, 4.2)
+        self.gravity = random.uniform(540, 720)
+
+    def update(self, dt):
+        self.age += dt
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.vy += self.gravity * dt
+        self.vx *= 0.985  # leichter Luftwiderstand
+
+
+def spawn_confetti(count=140):
+    """Drei Quellen: links und rechts wie Konfetti-Kanonen, plus Mitte
+    direkt ueber dem Spieler/Ziel — alles ein paar Hundert px/s Initial."""
+    out = []
+    for _ in range(count):
+        src = random.choices(["left", "right", "center"], weights=[3, 3, 4])[0]
+        if src == "left":
+            x = random.uniform(20, 80)
+            y = PLAYER_Y - 40 + random.uniform(-30, 10)
+            vx = random.uniform(80, 320)
+            vy = random.uniform(-520, -240)
+        elif src == "right":
+            x = W - random.uniform(20, 80)
+            y = PLAYER_Y - 40 + random.uniform(-30, 10)
+            vx = random.uniform(-320, -80)
+            vy = random.uniform(-520, -240)
+        else:
+            x = W // 2 + random.uniform(-50, 50)
+            y = PLAYER_Y + random.uniform(-50, 0)
+            vx = random.uniform(-260, 260)
+            vy = random.uniform(-560, -300)
+        out.append(Confetto(x, y, vx, vy, random.choice(CONFETTI_COLORS)))
+    return out
+
+
 class HayBale:
     """Rollt quer über die Straße. world_x interpoliert über duration von
     start_x zu end_x, sodass der Ballen mittig auf der Strecke ist, wenn der
@@ -2610,6 +2670,8 @@ async def run_race(screen, route, save_data, fonts):
     heli_x = 0.0
     heli_y = 0.0
     heli_vx = 0.0
+    confetti = []
+    confetti_extra_t = 0.0  # Nachburst-Timer fuers Streumuster
     spawn_density = route["obstacle_density"] * preset["obstacle_mult"]
     distance_target = route["distance_m"]
 
@@ -2695,6 +2757,37 @@ async def run_race(screen, route, save_data, fonts):
         lm_side = random.choice([-1, 1])
         lm_x = road_curve(lm_d) + lm_side * (ROAD_WIDTH // 2 + lm_sprite.get_width() // 2 + 28)
         decor.append(Decor(lm_d, lm_x, lm_key))
+
+    # Flamme-Rouge-Zone: ab Streckenmeter (distance_target - 80) bis ins Ziel
+    # ein dichter, dreireihiger Zuschauer-Wall an beiden Strassenseiten, plus
+    # Sponsor-Banner an der vordersten Reihe. Frenetisches Renn-Finale.
+    fr_zone_start = max(15.0, distance_target - 85)
+    fr_zone_end = distance_target + 8
+    spec_d = fr_zone_start
+    while spec_d < fr_zone_end:
+        rc_fr = road_curve(spec_d)
+        for fr_side in (-1, 1):
+            # 3 Reihen tief, jede mit leichtem Jitter
+            for depth in range(3):
+                offset = ROAD_WIDTH // 2 + 8 + depth * 8 + random.randint(-2, 4)
+                jitter_d = random.uniform(-1.0, 1.0)
+                jitter_x = random.uniform(-4, 4)
+                x_fr = rc_fr + fr_side * offset + jitter_x
+                if random.random() < 0.10:
+                    s_kind = random.choice(SPECIAL_SPECTATORS)
+                else:
+                    s_kind = random.choice(SPECTATOR_KINDS)
+                decor.append(Decor(spec_d + jitter_d, x_fr, s_kind))
+        spec_d += random.uniform(2.2, 3.6)
+    # Sponsor-Banner an der vorderen Absperrung — sichtbar zwischen Strasse
+    # und Fan-Wall.
+    bar_d = fr_zone_start
+    while bar_d < fr_zone_end:
+        rc_bar = road_curve(bar_d)
+        for bar_side in (-1, 1):
+            decor.append(Decor(bar_d, rc_bar + bar_side * (ROAD_WIDTH // 2 + 4),
+                               random.choice(BARRIER_KINDS)))
+        bar_d += random.uniform(6, 10)
 
     # Bemaltes Asphalt (Kreide-Tags) alle ~70m mitten auf der Straße.
     paints = []
@@ -2908,6 +3001,21 @@ async def run_race(screen, route, save_data, fonts):
                 if new_lvl > prev_level:
                     level_up = True
                 save_state(save_data)
+                # Konfetti-Buom!
+                confetti.extend(spawn_confetti(160))
+                confetti_extra_t = 1.2
+
+        # Konfetti animiert in jedem State weiter — wir wollen das auch nach
+        # dem Zieleinlauf sehen.
+        if confetti:
+            for c in confetti:
+                c.update(dt)
+            confetti[:] = [c for c in confetti if c.age < c.life]
+        # Nachschuss-Bursts kurz nach dem Ziel, damit's nicht nur ein einzelner Plopp ist.
+        if confetti_extra_t > 0:
+            confetti_extra_t -= dt
+            if random.random() < 0.5:
+                confetti.extend(spawn_confetti(30))
 
         recent_pickup_t = max(0.0, recent_pickup_t - dt)
 
@@ -2984,6 +3092,11 @@ async def run_race(screen, route, save_data, fonts):
             hint = fonts["small"].render("Enter / Tap: zurück zum Menü", True, HUD_DIM)
             screen.blit(hint, (W // 2 - hint.get_width() // 2, 380))
             touch.draw(screen, fonts["mid"], only={"menu"})
+
+        # Konfetti immer ganz zuoberst zeichnen — auch ueber dem Finish-Overlay.
+        for c in confetti:
+            pygame.draw.rect(screen, c.color,
+                             (int(c.x), int(c.y), c.size, c.size))
 
         pygame.display.flip()
         await asyncio.sleep(0)
