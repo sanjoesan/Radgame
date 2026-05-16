@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v6"
+VERSION = "v7"
 
 
 def _detect_touch():
@@ -675,17 +675,30 @@ def make_snowpatch_sprite(w=44, h=20):
 
 
 def make_haybale_sprite():
-    s = pygame.Surface((38, 34), pygame.SRCALPHA)
-    pygame.draw.ellipse(s, (110, 80, 35), (1, 5, 36, 28))
-    pygame.draw.ellipse(s, (195, 160, 75), (3, 7, 32, 22))
-    pygame.draw.ellipse(s, (225, 195, 110), (6, 10, 24, 14))
-    cx, cy = 19, 18
-    for ang in (0.0, math.pi / 4, math.pi / 2, 3 * math.pi / 4):
-        x1 = cx + math.cos(ang) * 14
-        y1 = cy + math.sin(ang) * 10
-        x2 = cx - math.cos(ang) * 14
-        y2 = cy - math.sin(ang) * 10
-        pygame.draw.line(s, (155, 115, 45), (x1, y1), (x2, y2), 1)
+    """Round-Bale-Stroh-Ballen, von der Seite gesehen: kreisrund (nicht oval),
+    mit angedeuteter Wicklung als konzentrische Ringe + radialen Strohhalmen."""
+    size = 38
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    cx = cy = size // 2
+    # Schatten/Aussenkante
+    pygame.draw.circle(s, (110, 80, 35), (cx, cy), 18)
+    # Stroh-Hauptflaeche
+    pygame.draw.circle(s, (195, 160, 75), (cx, cy), 17)
+    # Hellerer innerer Kern
+    pygame.draw.circle(s, (225, 195, 110), (cx, cy), 11)
+    # Konzentrische Wicklungs-Andeutung
+    pygame.draw.circle(s, (170, 135, 60), (cx, cy), 14, 1)
+    pygame.draw.circle(s, (170, 135, 60), (cx, cy),  8, 1)
+    # Strohhalm-Striche radial — fallen beim Rotieren wie echte Wicklung auf
+    for ang_deg in (12, 48, 82, 118, 162, 208, 248, 292, 332):
+        ang = math.radians(ang_deg)
+        x1 = cx + math.cos(ang) * 4
+        y1 = cy + math.sin(ang) * 4
+        x2 = cx + math.cos(ang) * 16
+        y2 = cy + math.sin(ang) * 16
+        pygame.draw.line(s, (140, 105, 45), (x1, y1), (x2, y2), 1)
+    # Glanzlicht oben links fuer Volumen
+    pygame.draw.circle(s, (245, 220, 150), (cx - 5, cy - 6), 3)
     return s
 
 
