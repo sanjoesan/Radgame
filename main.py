@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v21"
+VERSION = "v22"
 
 
 def _detect_touch():
@@ -1919,11 +1919,23 @@ def make_goodie_sprite(kind):
     return s
 
 
+_LAST_FINGER_T_MS = [0]
+
+
 def event_tap_pos(event):
-    """Pixel-Position eines Tap-/Klick-Events oder None."""
+    """Pixel-Position eines Tap-/Klick-Events oder None.
+
+    Mobile-Browser feuern zu jedem Finger-Tap zusaetzlich einen synthetischen
+    MOUSEBUTTONDOWN. Wenn wir beide annehmen, wird jedes Toggle DOPPELT
+    ausgeloest und wirkt broken (Musik/SFX-An/Aus blieb deshalb unveraendert,
+    Volume und Schwierigkeit sprangen zwei Stufen). Daher Mouse-Events
+    ignorieren, wenn der letzte FINGERDOWN < 500ms zurueckliegt."""
     if event.type == pygame.FINGERDOWN:
+        _LAST_FINGER_T_MS[0] = pygame.time.get_ticks()
         return (int(event.x * W), int(event.y * H))
     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        if pygame.time.get_ticks() - _LAST_FINGER_T_MS[0] < 500:
+            return None
         return event.pos
     return None
 
