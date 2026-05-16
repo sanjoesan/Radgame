@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v10"
+VERSION = "v11"
 
 
 def _detect_touch():
@@ -1174,8 +1174,6 @@ def make_team_car_sprite(body_color=(45, 110, 195)):
     glass_dark = (90, 150, 180)
     tire = (20, 20, 25)
     rim = (165, 165, 170)
-    spare_tire = (32, 32, 40)
-    spare_rim = (185, 185, 190)
     headlight = (252, 245, 200)
     taillight = (220, 50, 50)
 
@@ -1204,11 +1202,34 @@ def make_team_car_sprite(body_color=(45, 110, 195)):
                         [(7, 11), (25, 11), (23, 19), (9, 19)])
     pygame.draw.line(s, glass_dark, (16, 11), (16, 19), 1)
 
-    # Dachgepaecktraeger mit 4 Ersatzraedern (querliegend, sehr typisch)
+    # Dachgepaecktraeger mit drei laengs montierten Rennraedern, von oben
+    # gesehen. Jedes Bike hat Vorderrad (mit Lenker), Rahmen-Linie laengs,
+    # Sattel, Hinterrad. Drei Bikes nebeneinander quer aufgestellt.
     pygame.draw.rect(s, body_lo, (6, 20, 20, 22))
-    for ry in (22, 27, 32, 37):
-        pygame.draw.rect(s, spare_tire, (8, ry, 16, 4), border_radius=1)
-        pygame.draw.rect(s, spare_rim, (14, ry + 1, 4, 2))
+    # Zwei Querstreben des Dachtraegers (vorne + hinten)
+    pygame.draw.rect(s, (170, 170, 175), (6, 21, 20, 1))
+    pygame.draw.rect(s, (170, 170, 175), (6, 40, 20, 1))
+    bike_colors = [(220, 50, 50), (240, 200, 60), (50, 130, 220)]
+    tire_c = (22, 22, 30)
+    rim_c = (200, 200, 210)
+    saddle_c = (30, 30, 40)
+    bar_c = (55, 55, 65)
+    by0 = 23
+    by1 = 39
+    for i, frame_c in enumerate(bike_colors):
+        bx = 9 + i * 6  # 9, 15, 21
+        # Lenker (quer, vorne)
+        pygame.draw.rect(s, bar_c, (bx - 2, by0, 5, 1))
+        # Vorderrad: oval laengs
+        pygame.draw.rect(s, tire_c, (bx - 1, by0 + 1, 3, 4))
+        pygame.draw.rect(s, rim_c, (bx, by0 + 2, 1, 2))
+        # Rahmen-Top-Tube
+        pygame.draw.rect(s, frame_c, (bx, by0 + 5, 1, 8))
+        # Sattel
+        pygame.draw.rect(s, saddle_c, (bx - 1, by0 + 9, 3, 2))
+        # Hinterrad
+        pygame.draw.rect(s, tire_c, (bx - 1, by1 - 4, 3, 4))
+        pygame.draw.rect(s, rim_c, (bx, by1 - 3, 1, 2))
 
     # Heckscheibe
     pygame.draw.polygon(s, glass,
@@ -2791,23 +2812,23 @@ async def run_race(screen, route, save_data, fonts):
                 b.update(dt)
             for v in vehicles:
                 v.update(dt)
-            # view_front: Distanz vom Spieler bis zum oberen sichtbaren Bildrand
-            # (unter der HUD). Spawn-Polster liegt jenseits davon.
+            view_back = (H - PLAYER_Y) / PX_PER_M    # ~19m fuer 960h
             view_front = (PLAYER_Y - HUD_H) / PX_PER_M  # ~14m fuer 960h
-            # Fahrzeuge spawnen JENSEITS des oberen Bildrands (also weiter vorne
-            # auf der Strecke), bewegen sich langsamer als der Spieler und
-            # wandern dadurch von oben ins Bild rein.
+            # Motorrad: spawnt UNTERHALB des sichtbaren Bereichs (also hinter
+            # dem Spieler), holt mit hoeherer Geschwindigkeit auf und ueberholt.
             next_moto_t -= dt
             if next_moto_t <= 0:
                 next_moto_t = random.uniform(5, 12)
                 side = random.choice([-1, 1])
                 offset = side * (ROAD_WIDTH // 2 - 14)
                 vehicles.append(Vehicle(
-                    distance=player.distance + view_front + random.uniform(3, 8),
+                    distance=player.distance - view_back - random.uniform(3, 8),
                     lane_offset=offset,
-                    speed_kmh=max(player.speed - random.uniform(5, 10), 24),
+                    speed_kmh=max(player.speed + random.uniform(8, 14), 40),
                     sprite=photo_moto_sprite,
                 ))
+            # Teamwagen: spawnt OBERHALB des sichtbaren Bereichs (weiter vorne
+            # auf der Strecke), faellt langsam Richtung Spieler durch.
             next_car_t -= dt
             if next_car_t <= 0:
                 next_car_t = random.uniform(8, 16)
@@ -2851,12 +2872,12 @@ async def run_race(screen, route, save_data, fonts):
             decor[:] = [d for d in decor if d.distance > player.distance - cull_behind]
             bales[:] = [b for b in bales if b.alive and b.distance > player.distance - cull_behind]
             paints[:] = [p for p in paints if p[0] > player.distance - cull_behind]
-            # Vehicles duerfen oberhalb der HUD noch ein paar Meter ausserhalb
-            # des sichtbaren Bereichs gespawnt sein (damit sie reinwandern
-            # statt zu poppen), aber nach unten sofort raus sobald weg.
-            cull_ahead = (PLAYER_Y - HUD_H) / PX_PER_M + 14
+            # Vehicles brauchen ein groesseres Cull-Polster ueber + unter dem
+            # sichtbaren Bereich — sie spawnen ausserhalb und wandern rein.
+            cull_back_v = (H - PLAYER_Y) / PX_PER_M + 12
+            cull_ahead_v = (PLAYER_Y - HUD_H) / PX_PER_M + 14
             vehicles[:] = [v for v in vehicles
-                           if -cull_behind < (v.distance - player.distance) < cull_ahead]
+                           if -cull_back_v < (v.distance - player.distance) < cull_ahead_v]
             if player.distance >= distance_target:
                 state = "finished"
                 final_position = player_position(player, opponents)
