@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v11"
+VERSION = "v12"
 
 
 def _detect_touch():
@@ -1452,6 +1452,16 @@ SPECIAL_SPECTATORS = ["diablo", "drummer"]
 BARRIER_KINDS = [f"barrier_{i}" for i in range(len(SPONSORS))]
 
 
+def draw_scroll_arrow(screen, cx, cy, direction, color=HUD_DIM, size=8):
+    """Kleines Dreieck als Scroll-Indikator (statt Unicode ▲▼). Pygames
+    Default-Font hat die Glyphen nicht — wir zeichnen sie selbst."""
+    if direction == "up":
+        pts = [(cx, cy - size // 2), (cx - size, cy + size // 2), (cx + size, cy + size // 2)]
+    else:
+        pts = [(cx, cy + size // 2), (cx - size, cy - size // 2), (cx + size, cy - size // 2)]
+    pygame.draw.polygon(screen, color, pts)
+
+
 def make_star_sprite(filled=True, size=14):
     s = pygame.Surface((size, size), pygame.SRCALPHA)
     cx = cy = size // 2
@@ -2307,7 +2317,7 @@ async def run_menu(screen, save_data, fonts):
                 cur_label = DIFFICULTY_PRESETS[cur_diff]["label"]
                 name = fonts["mid"].render(f"Schwierigkeit: {cur_label}", True, CYAN)
                 screen.blit(name, (list_x + 14, y + 4))
-                desc = fonts["small"].render("Tap / Enter / ←→: wechseln (Leicht · Mittel · Schwer)", True, HUD_DIM)
+                desc = fonts["small"].render("Tap / Enter: wechseln (Leicht · Mittel · Schwer)", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
             elif i == 1:
                 bg = (60, 50, 30) if sel else (40, 35, 25)
@@ -2348,13 +2358,12 @@ async def run_menu(screen, save_data, fonts):
                     screen.blit(b, (list_x + list_w - b.get_width() - 14, y + 10))
 
         if scroll_start > 0:
-            screen.blit(fonts["small"].render("▲", True, HUD_DIM), (W // 2 - 6, list_y0 - 14))
+            draw_scroll_arrow(screen, W // 2, list_y0 - 10, "up")
         if scroll_start + visible < options_count:
-            screen.blit(fonts["small"].render("▼", True, HUD_DIM),
-                        (W // 2 - 6, list_y0 + visible * row_h - 4))
+            draw_scroll_arrow(screen, W // 2, list_y0 + visible * row_h, "down")
 
         hint = fonts["small"].render(
-            "Tap · ↑/↓ wählen · Enter starten",
+            "Tap oder Pfeiltasten · Enter startet",
             True, HUD_DIM,
         )
         screen.blit(hint, (W // 2 - hint.get_width() // 2, H - 26))
@@ -2530,10 +2539,9 @@ async def run_shop(screen, save_data, fonts):
                 screen.blit(r, (row_x + row_w - r.get_width() - 8, y + 14))
 
         if scroll_start > 0:
-            screen.blit(fonts["small"].render("▲", True, HUD_DIM), (W // 2 - 6, list_y0 - 14))
+            draw_scroll_arrow(screen, W // 2, list_y0 - 10, "up")
         if scroll_start + visible_rows < len(items_list):
-            screen.blit(fonts["small"].render("▼", True, HUD_DIM),
-                        (W // 2 - 6, list_y0 + visible_rows * row_h - 2))
+            draw_scroll_arrow(screen, W // 2, list_y0 + visible_rows * row_h, "down")
 
         if msg_t > 0:
             t = fonts["mid"].render(msg, True, WHITE)
