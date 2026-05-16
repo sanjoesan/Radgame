@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v25"
+VERSION = "v26"
 
 
 def _detect_touch():
@@ -70,8 +70,12 @@ def _initial_size():
 W, H = _initial_size()
 FPS = 60
 ROAD_WIDTH = max(150, min(220, W // 3))
-PLAYER_Y = H // 2
 PLAYER_W, PLAYER_H = 26, 48
+PLAYER_Y = H * 3 // 5
+if IS_TOUCH:
+    _btn_h   = max(80, min(int(H * 0.13), 140))
+    _drink_h = max(40, int(H * 0.055))
+    PLAYER_Y = min(PLAYER_Y, H - 16 - _btn_h - _drink_h - PLAYER_H // 2 - 16)
 HUD_H = max(96, min(H // 7, 140))
 FONT_SCALE = max(0.7, min(H / 960.0, 1.6))
 
@@ -81,7 +85,11 @@ def _apply_window_size(w, h):
     global W, H, ROAD_WIDTH, PLAYER_Y, HUD_H, FONT_SCALE
     W, H = _clamp_size(w, h)
     ROAD_WIDTH = max(150, min(220, W // 3))
-    PLAYER_Y = H // 2
+    PLAYER_Y = H * 3 // 5
+    if IS_TOUCH:
+        _btn_h   = max(80, min(int(H * 0.13), 140))
+        _drink_h = max(40, int(H * 0.055))
+        PLAYER_Y = min(PLAYER_Y, H - 16 - _btn_h - _drink_h - PLAYER_H // 2 - 16)
     HUD_H = max(96, min(H // 7, 140))
     FONT_SCALE = max(0.7, min(H / 960.0, 1.6))
 
