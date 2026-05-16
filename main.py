@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v7"
+VERSION = "v8"
 
 
 def _detect_touch():
@@ -2614,7 +2614,10 @@ async def run_race(screen, route, save_data, fonts):
     haybale_sprite = make_haybale_sprite()
     photo_moto_sprite = make_photo_motorbike_sprite()
     team_car_sprites = [make_team_car_sprite(c) for c in TEAM_CAR_COLORS]
-    heli_shadow_sprite = make_helicopter_shadow_sprite()
+    # Sprite hat das Cockpit links und den Heckausleger rechts — der "links
+    # fliegende" Heli. Fuer Rechtsflug spiegeln, sonst sieht er rueckwaerts aus.
+    heli_shadow_left = make_helicopter_shadow_sprite()
+    heli_shadow_right = pygame.transform.flip(heli_shadow_left, True, False)
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
 
@@ -2885,9 +2888,9 @@ async def run_race(screen, route, save_data, fonts):
         draw_road(screen, player, theme_data)
         # Heli-Schatten direkt aufm Asphalt — unter allem anderen.
         if heli_active:
-            screen.blit(heli_shadow_sprite,
-                        (int(heli_x) - heli_shadow_sprite.get_width() // 2,
-                         int(heli_y) - heli_shadow_sprite.get_height() // 2))
+            spr = heli_shadow_left if heli_vx < 0 else heli_shadow_right
+            screen.blit(spr, (int(heli_x) - spr.get_width() // 2,
+                              int(heli_y) - spr.get_height() // 2))
         # Asphalt-Tags zuerst — gehören direkt auf den Belag.
         for pdist, px, pspr in paints:
             draw_world_obj(screen, pdist, px, pspr, player)
