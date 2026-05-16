@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v1"
+VERSION = "v2"
 
 
 def _detect_touch():
@@ -695,6 +695,197 @@ def make_rock_obstacle_sprite():
     pygame.draw.polygon(s, (130, 130, 135), [(8, 8), (16, 4), (22, 10), (18, 16)])
     pygame.draw.polygon(s, (160, 160, 165), [(12, 8), (16, 5), (18, 10)])
     return s
+
+
+def make_landmark_lighthouse_sprite():
+    """Sanremo-Leuchtturm — Erkennungszeichen der Mittelmeerstrecke."""
+    s = pygame.Surface((28, 64), pygame.SRCALPHA)
+    body = (245, 245, 240)
+    red = (220, 60, 60)
+    dark = (60, 60, 70)
+    yellow = (250, 230, 60)
+    pygame.draw.rect(s, body, (10, 18, 8, 46))
+    for y in (24, 32, 40, 48):
+        pygame.draw.rect(s, red, (10, y, 8, 4))
+    pygame.draw.rect(s, dark, (7, 12, 14, 6))
+    pygame.draw.rect(s, yellow, (8, 13, 12, 4))
+    pygame.draw.polygon(s, dark, [(6, 12), (14, 0), (22, 12)])
+    pygame.draw.line(s, yellow, (3, 10), (10, 14), 2)
+    pygame.draw.line(s, yellow, (18, 14), (25, 10), 2)
+    return s
+
+
+def make_landmark_siena_sprite():
+    """Torre del Mangia auf der Piazza del Campo — Strade Bianche Ziel."""
+    s = pygame.Surface((30, 84), pygame.SRCALPHA)
+    body = (200, 120, 60)
+    body_dark = (150, 85, 45)
+    pygame.draw.rect(s, body, (10, 12, 10, 72))
+    pygame.draw.rect(s, body_dark, (10, 12, 10, 72), 1)
+    for x in (10, 13, 16, 19):
+        pygame.draw.rect(s, body_dark, (x, 6, 2, 6))
+    pygame.draw.rect(s, body, (10, 12, 10, 2))
+    for y in (28, 44, 60):
+        pygame.draw.rect(s, (30, 30, 40), (13, y, 4, 6))
+    pygame.draw.rect(s, (250, 220, 80), (14, 0, 2, 6))
+    pygame.draw.rect(s, (250, 220, 80), (13, 1, 4, 1))
+    return s
+
+
+def make_landmark_kapellemuur_sprite():
+    """Kleine flandrische Kapelle auf einem Pavé-Hügel."""
+    s = pygame.Surface((42, 56), pygame.SRCALPHA)
+    body = (245, 240, 230)
+    roof = (130, 60, 40)
+    door = (60, 40, 30)
+    pygame.draw.polygon(s, (140, 125, 105), [(0, 46), (21, 32), (42, 46), (42, 56), (0, 56)])
+    pygame.draw.rect(s, body, (10, 22, 22, 24))
+    pygame.draw.polygon(s, roof, [(8, 22), (21, 10), (34, 22)])
+    pygame.draw.rect(s, body, (19, 4, 4, 18))
+    pygame.draw.polygon(s, roof, [(18, 4), (21, 0), (24, 4)])
+    pygame.draw.rect(s, (220, 200, 80), (20, 6, 2, 6))
+    pygame.draw.rect(s, (220, 200, 80), (19, 7, 4, 1))
+    pygame.draw.rect(s, door, (18, 34, 6, 12))
+    return s
+
+
+def make_landmark_velodrome_sprite():
+    """Steilwand-Bogen des Roubaix-Velodroms mit Pavé-Stein."""
+    s = pygame.Surface((70, 50), pygame.SRCALPHA)
+    rim = (200, 180, 140)
+    rim_dark = (140, 120, 90)
+    pygame.draw.arc(s, rim_dark, (4, 16, 62, 70), math.pi, 2 * math.pi, 7)
+    pygame.draw.arc(s, rim, (8, 20, 54, 60), math.pi, 2 * math.pi, 3)
+    pygame.draw.rect(s, rim_dark, (4, 44, 62, 4))
+    pygame.draw.rect(s, (160, 160, 165), (30, 34, 10, 12))
+    pygame.draw.rect(s, (140, 140, 145), (30, 34, 10, 12), 1)
+    font = pygame.font.Font(None, 12)
+    t = font.render("ROUBAIX", True, (40, 40, 50))
+    s.blit(t, (35 - t.get_width() // 2, 38))
+    return s
+
+
+def make_landmark_castle_sprite():
+    """Burg in den Ardennen — Lüttich-Bastogne."""
+    s = pygame.Surface((48, 44), pygame.SRCALPHA)
+    body = (140, 140, 142)
+    body_dark = (100, 100, 105)
+    roof = (115, 65, 55)
+    pygame.draw.rect(s, body, (10, 20, 28, 24))
+    pygame.draw.rect(s, body, (4, 10, 8, 34))
+    pygame.draw.rect(s, body, (36, 10, 8, 34))
+    pygame.draw.polygon(s, roof, [(2, 10), (8, 2), (14, 10)])
+    pygame.draw.polygon(s, roof, [(34, 10), (40, 2), (46, 10)])
+    for x in (10, 14, 18, 22, 26, 30, 34):
+        pygame.draw.rect(s, body_dark, (x, 16, 2, 4))
+    pygame.draw.rect(s, body_dark, (10, 20, 28, 1))
+    pygame.draw.rect(s, (40, 30, 20), (22, 30, 8, 14))
+    pygame.draw.rect(s, (40, 30, 20), (6, 22, 4, 6))
+    pygame.draw.rect(s, (40, 30, 20), (38, 22, 4, 6))
+    return s
+
+
+def make_landmark_ventoux_obs_sprite():
+    """Wetter-Observatorium am Mont Ventoux mit Geröllhalde."""
+    s = pygame.Surface((30, 66), pygame.SRCALPHA)
+    pygame.draw.polygon(s, (225, 225, 230),
+                        [(0, 66), (9, 32), (21, 32), (30, 66)])
+    pygame.draw.rect(s, (240, 240, 245), (10, 6, 10, 30))
+    pygame.draw.rect(s, (250, 250, 255), (12, 9, 6, 24))
+    pygame.draw.rect(s, (220, 60, 60), (14, 0, 2, 8))
+    pygame.draw.line(s, (60, 60, 70), (15, 0), (15, 6), 1)
+    return s
+
+
+def make_landmark_ghisallo_sprite():
+    """Madonna del Ghisallo — Schutzheilige der Radfahrer (Lombardia)."""
+    s = pygame.Surface((38, 54), pygame.SRCALPHA)
+    body = (240, 235, 225)
+    roof = (130, 75, 50)
+    door = (60, 40, 30)
+    pygame.draw.rect(s, body, (4, 22, 30, 32))
+    pygame.draw.polygon(s, roof, [(2, 22), (19, 10), (36, 22)])
+    pygame.draw.rect(s, body, (17, 4, 6, 18))
+    pygame.draw.polygon(s, roof, [(15, 4), (20, 0), (25, 4)])
+    pygame.draw.rect(s, (250, 220, 80), (19, 7, 2, 6))
+    pygame.draw.rect(s, (250, 220, 80), (18, 8, 4, 1))
+    pygame.draw.rect(s, door, (16, 38, 8, 16))
+    pygame.draw.rect(s, (60, 90, 130), (9, 30, 4, 6))
+    pygame.draw.rect(s, (60, 90, 130), (25, 30, 4, 6))
+    return s
+
+
+def make_landmark_giro_arch_sprite():
+    """Pinker Giro-Bogen — Maglia-Rosa-Stimmung."""
+    s = pygame.Surface((100, 54), pygame.SRCALPHA)
+    pink = (235, 80, 150)
+    pink_dark = (180, 50, 110)
+    pygame.draw.arc(s, pink, (4, 4, 92, 90), math.pi, 2 * math.pi, 8)
+    pygame.draw.arc(s, pink_dark, (4, 4, 92, 90), math.pi, 2 * math.pi, 2)
+    font = pygame.font.Font(None, 22)
+    t = font.render("GIRO", True, (255, 255, 255))
+    s.blit(t, ((100 - t.get_width()) // 2, 4))
+    return s
+
+
+def make_landmark_tour_marker_sprite():
+    """Gelber Tour-Bogen mit Schriftzug."""
+    s = pygame.Surface((100, 54), pygame.SRCALPHA)
+    yellow = (250, 210, 60)
+    yellow_dark = (180, 150, 30)
+    pygame.draw.arc(s, yellow, (4, 4, 92, 90), math.pi, 2 * math.pi, 8)
+    pygame.draw.arc(s, yellow_dark, (4, 4, 92, 90), math.pi, 2 * math.pi, 2)
+    font = pygame.font.Font(None, 22)
+    t = font.render("TOUR", True, (40, 40, 50))
+    s.blit(t, ((100 - t.get_width()) // 2, 4))
+    return s
+
+
+def make_landmark_alpe21_sprite():
+    """Schild "ALPE 21" — die 21 Kehren von Alpe d'Huez."""
+    s = pygame.Surface((34, 48), pygame.SRCALPHA)
+    pygame.draw.rect(s, (110, 75, 40), (16, 28, 2, 20))
+    pygame.draw.rect(s, (250, 210, 60), (0, 4, 34, 24))
+    pygame.draw.rect(s, (40, 40, 50), (0, 4, 34, 24), 2)
+    font = pygame.font.Font(None, 18)
+    t = font.render("ALPE", True, (40, 40, 50))
+    s.blit(t, ((34 - t.get_width()) // 2, 6))
+    font2 = pygame.font.Font(None, 22)
+    t2 = font2.render("21", True, (220, 60, 60))
+    s.blit(t2, ((34 - t2.get_width()) // 2, 16))
+    return s
+
+
+def make_landmark_steepness_sign_sprite():
+    """Steigungs-Warnschild — Angliru / Mauer-Strecken."""
+    s = pygame.Surface((32, 40), pygame.SRCALPHA)
+    pygame.draw.rect(s, (110, 75, 40), (15, 22, 2, 18))
+    pygame.draw.polygon(s, (250, 250, 240),
+                        [(0, 4), (32, 4), (32, 20), (16, 24), (0, 20)])
+    pygame.draw.polygon(s, (60, 60, 70),
+                        [(0, 4), (32, 4), (32, 20), (16, 24), (0, 20)], 1)
+    font = pygame.font.Font(None, 18)
+    t = font.render("23%", True, (220, 60, 60))
+    s.blit(t, ((32 - t.get_width()) // 2, 8))
+    return s
+
+
+ROUTE_LANDMARKS = {
+    "milano_sanremo":  make_landmark_lighthouse_sprite,
+    "strade_bianche":  make_landmark_siena_sprite,
+    "flandern":        make_landmark_kapellemuur_sprite,
+    "paris_roubaix":   make_landmark_velodrome_sprite,
+    "liege":           make_landmark_castle_sprite,
+    "tourmalet":       make_landmark_tour_marker_sprite,
+    "alpedhuez":       make_landmark_alpe21_sprite,
+    "galibier":        make_landmark_tour_marker_sprite,
+    "ventoux":         make_landmark_ventoux_obs_sprite,
+    "mortirolo":       make_landmark_giro_arch_sprite,
+    "zoncolan":        make_landmark_giro_arch_sprite,
+    "stelvio":         make_landmark_giro_arch_sprite,
+    "angliru":         make_landmark_steepness_sign_sprite,
+    "lombardia":       make_landmark_ghisallo_sprite,
+}
 
 
 def make_beach_hut_sprite():
@@ -2336,6 +2527,20 @@ async def run_race(screen, route, save_data, fonts):
         key = f"gantry_{i}"
         decor_sprites[key] = make_gantry_sprite(text, color, kind)
         decor.append(Decor(gd, road_curve(gd), key))
+
+    # Streckenspezifisches Landmark kurz vorm Ziel — das markanteste Bauwerk
+    # der echten Strecke (Sanremo-Leuchtturm, Torre del Mangia in Siena,
+    # Roubaix-Velodrom, etc.). Steht am Straßenrand, damit es nicht den
+    # Ziel-Bogen verdeckt.
+    lm_factory = ROUTE_LANDMARKS.get(route["id"])
+    if lm_factory and distance_target > 80:
+        lm_sprite = lm_factory()
+        lm_key = f"landmark_{route['id']}"
+        decor_sprites[lm_key] = lm_sprite
+        lm_d = distance_target - 35
+        lm_side = random.choice([-1, 1])
+        lm_x = road_curve(lm_d) + lm_side * (ROAD_WIDTH // 2 + lm_sprite.get_width() // 2 + 28)
+        decor.append(Decor(lm_d, lm_x, lm_key))
 
     # Bemaltes Asphalt (Kreide-Tags) alle ~70m mitten auf der Straße.
     paints = []

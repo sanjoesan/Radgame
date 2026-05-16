@@ -35,53 +35,7 @@ jobs:
         run: python -m pygbag --build --ume_block 0 --can_close 1 main.py
 
       - name: Patch index.html for portrait mobile (kein Squeeze)
-        run: |
-          python <<'PY'
-          from pathlib import Path
-          p = Path('build/web/index.html')
-          html = p.read_text()
-
-          # 1) Doppelter <meta viewport>-Tag raus, ein sauberer rein. Sonst zickt
-          #    Mobile-Layout (height=device-height ueberschreibt width=device-width).
-          html = html.replace(
-              '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
-              '    <meta name="viewport" content="height=device-height, initial-scale=1.0">',
-              '<meta name="viewport" content="width=device-width, initial-scale=1.0, '
-              'viewport-fit=cover, user-scalable=no">'
-          )
-
-          # 2) pygbag-Default-Framebuffer ist 1280x720 (landscape). Auf Portrait-
-          #    Handy wird unser Pygame-Surface dann in 16:9 gequetscht. Wir
-          #    setzen die fb_*-Werte auf den tatsaechlichen Viewport, BEVOR
-          #    pygbag init laeuft (gleicher <script>-Block, direkt nach config).
-          needle = 'fb_height : "720"\n}'
-          if needle not in html:
-              raise SystemExit('Patch-Anker fb_height nicht gefunden — pygbag-Template hat sich geaendert')
-          inject = needle + '''
-;(function(){
-    // Framebuffer an den realen Viewport anpassen, damit nichts squeezed wird.
-    const w = Math.max(320, window.innerWidth|0);
-    const h = Math.max(480, window.innerHeight|0);
-    config.fb_width = String(w);
-    config.fb_height = String(h);
-    config.fb_ar = w / h;
-})()'''
-          html = html.replace(needle, inject)
-
-          # 3) Canvas-CSS so, dass das Pygame-Surface den Viewport exakt
-          #    ausfuellt — gleiche Pixelmasse, kein Stretch noetig.
-          html = html.replace(
-              '</head>',
-              '<style>\n'
-              'html, body { width: 100%; height: 100%; overflow: hidden; background: #14182a; }\n'
-              'canvas.emscripten { width: 100vw !important; height: 100vh !important; '
-              'max-width: 100vw; max-height: 100vh; display: block; }\n'
-              '</style>\n</head>'
-          )
-
-          p.write_text(html)
-          print('index.html gepatcht')
-          PY
+        run: python tools/patch_pygbag_index.py
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
