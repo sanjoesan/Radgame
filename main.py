@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v2"
+VERSION = "v3"
 
 
 def _detect_touch():
@@ -1577,17 +1577,37 @@ class Player:
         self.pedal_phase += dt * (3.0 + self.speed * 0.18)
 
 
+def race_leader_jersey(route):
+    """Liefert (jersey_color, secondary_or_None) für das Führungstrikot der
+    jeweiligen Rennserie, oder None wenn keins passt. Monument-Klassiker
+    geben das Regenbogen-Weltmeister-Trikot."""
+    race = route.get("race", "").lower()
+    if "tour de france" in race:
+        return ((250, 210, 60), None)            # Maillot Jaune
+    if "giro" in race:
+        return ((235, 80, 150), None)            # Maglia Rosa
+    if "vuelta" in race:
+        return ((220, 50, 50), None)             # Maillot Rojo
+    if "monument" in race or "klassiker" in race:
+        return ((240, 240, 240), (90, 150, 230)) # Regenbogentrikot
+    return None
+
+
 class Opponent:
-    def __init__(self, start_distance, base_speed, top_speed=56):
+    def __init__(self, start_distance, base_speed, top_speed=56, forced_jersey=None):
         self.distance = start_distance
         self.target_speed = base_speed
         self.speed = base_speed
         self.top_speed = top_speed
         self.lane_pref = random.uniform(-ROAD_WIDTH // 2 + 22, ROAD_WIDTH // 2 - 22)
         self.world_x = road_curve(start_distance) + self.lane_pref
-        self.jersey = (random.randint(40, 230), random.randint(40, 230), random.randint(40, 230))
+        if forced_jersey:
+            self.jersey, secondary = forced_jersey
+        else:
+            self.jersey = (random.randint(40, 230), random.randint(40, 230), random.randint(40, 230))
+            secondary = None
         self.helmet = (random.randint(30, 220), random.randint(30, 220), random.randint(30, 220))
-        base = make_cyclist_sprite(self.jersey, self.helmet)
+        base = make_cyclist_sprite(self.jersey, self.helmet, secondary=secondary)
         self.sprite_frames = (
             pygame.transform.rotate(base, 3),
             pygame.transform.rotate(base, -3),
@@ -2440,6 +2460,19 @@ async def run_race(screen, route, save_data, fonts):
                           base + random.uniform(-4, 8),
                           top_speed=opp_top)
                  for _ in range(opp_count)]
+    # 2-3 Pulk-Mitglieder kriegen das Fuehrungstrikot der Rennserie verpasst,
+    # damit man auf Anhieb sieht, ob man im Giro/Tour/Vuelta unterwegs ist.
+    leader_jersey = race_leader_jersey(route)
+    if leader_jersey:
+        n_leaders = min(3, opp_count)
+        for i in random.sample(range(opp_count), n_leaders):
+            old = opponents[i]
+            new_opp = Opponent(old.distance, old.target_speed,
+                               top_speed=old.top_speed, forced_jersey=leader_jersey)
+            # Position vom Random-Init beibehalten, sonst wandern sie weg
+            new_opp.world_x = old.world_x
+            new_opp.lane_pref = old.lane_pref
+            opponents[i] = new_opp
     obstacles = []
     bales = []
     goodies = []
