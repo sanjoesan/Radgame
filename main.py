@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v5"
+VERSION = "v6"
 
 
 def _detect_touch():
@@ -1139,35 +1139,80 @@ def make_photo_motorbike_sprite():
     return s
 
 
-def make_team_car_sprite():
-    """Teamwagen mit Ersatzrädern auf dem Dach."""
-    s = pygame.Surface((28, 54), pygame.SRCALPHA)
-    body = (45, 110, 195)
-    body_hi = (75, 140, 225)
+TEAM_CAR_COLORS = [
+    (45, 110, 195),   # Klassik-Blau
+    (220, 55, 55),    # Renn-Rot
+    (240, 200, 60),   # Sonnen-Gelb
+    (60, 165, 90),    # Team-Gruen
+    (235, 80, 150),   # Pink
+    (245, 130, 50),   # Orange
+    (185, 185, 200),  # Silber
+    (40, 40, 55),     # Tief-Schwarz
+]
+
+
+def make_team_car_sprite(body_color=(45, 110, 195)):
+    """Teamwagen von oben gesehen: Karosserie mit Frontscheibe, Dach mit
+    Ersatzraedern, Heckscheibe, Scheinwerfer vorne, Ruecklichter hinten."""
+    s = pygame.Surface((32, 58), pygame.SRCALPHA)
+    body_hi = tuple(min(255, c + 35) for c in body_color)
+    body_lo = tuple(max(0, c - 50) for c in body_color)
     glass = (140, 200, 230)
+    glass_dark = (90, 150, 180)
     tire = (20, 20, 25)
-    rim = (160, 160, 165)
-    spare = (35, 35, 42)
-    spare_rim = (180, 180, 185)
-    # Räder
-    for ry in (8, 38):
-        pygame.draw.rect(s, tire, (1, ry, 4, 10))
-        pygame.draw.rect(s, tire, (23, ry, 4, 10))
-        pygame.draw.rect(s, rim, (2, ry + 2, 2, 6))
-        pygame.draw.rect(s, rim, (24, ry + 2, 2, 6))
-    # Karosserie
-    pygame.draw.rect(s, body, (4, 4, 20, 46))
-    pygame.draw.rect(s, body_hi, (4, 4, 20, 3))
-    # Frontscheibe
-    pygame.draw.rect(s, glass, (6, 9, 16, 6))
-    # Dachgepäckträger + Ersatzräder von oben (Ovale quer)
-    for ry in (18, 24, 30, 36):
-        pygame.draw.rect(s, spare, (7, ry, 14, 4))
-        pygame.draw.rect(s, spare_rim, (13, ry + 1, 2, 2))
+    rim = (165, 165, 170)
+    spare_tire = (32, 32, 40)
+    spare_rim = (185, 185, 190)
+    headlight = (252, 245, 200)
+    taillight = (220, 50, 50)
+
+    # Raeder ragen leicht ueber die Karosserie hinaus
+    for ry in (8, 40):
+        pygame.draw.rect(s, tire, (0, ry, 5, 12))
+        pygame.draw.rect(s, tire, (27, ry, 5, 12))
+        pygame.draw.rect(s, rim, (1, ry + 2, 3, 8))
+        pygame.draw.rect(s, rim, (28, ry + 2, 3, 8))
+
+    # Karosserie (abgerundet)
+    pygame.draw.rect(s, body_color, (4, 2, 24, 54), border_radius=5)
+    # Highlight oben (Sonnenreflex auf der Motorhaube)
+    pygame.draw.rect(s, body_hi, (6, 4, 20, 2), border_radius=3)
+
+    # Scheinwerfer
+    pygame.draw.rect(s, headlight, (7, 3, 4, 2), border_radius=1)
+    pygame.draw.rect(s, headlight, (21, 3, 4, 2), border_radius=1)
+    # Kuehlergrill
+    pygame.draw.rect(s, body_lo, (11, 6, 10, 2))
+    for gx in (12, 14, 16, 18):
+        pygame.draw.rect(s, (30, 30, 35), (gx, 7, 1, 1))
+
+    # Frontscheibe (trapezfoermig zum Cockpit hin)
+    pygame.draw.polygon(s, glass,
+                        [(7, 11), (25, 11), (23, 19), (9, 19)])
+    pygame.draw.line(s, glass_dark, (16, 11), (16, 19), 1)
+
+    # Dachgepaecktraeger mit 4 Ersatzraedern (querliegend, sehr typisch)
+    pygame.draw.rect(s, body_lo, (6, 20, 20, 22))
+    for ry in (22, 27, 32, 37):
+        pygame.draw.rect(s, spare_tire, (8, ry, 16, 4), border_radius=1)
+        pygame.draw.rect(s, spare_rim, (14, ry + 1, 4, 2))
+
     # Heckscheibe
-    pygame.draw.rect(s, glass, (6, 42, 16, 4))
-    # Logo
-    pygame.draw.rect(s, (250, 220, 80), (10, 11, 8, 2))
+    pygame.draw.polygon(s, glass,
+                        [(9, 42), (23, 42), (25, 49), (7, 49)])
+    pygame.draw.line(s, glass_dark, (16, 42), (16, 49), 1)
+
+    # Kofferraumkante
+    pygame.draw.line(s, body_lo, (5, 50), (26, 50), 1)
+    # Ruecklichter
+    pygame.draw.rect(s, taillight, (6, 52, 5, 3), border_radius=1)
+    pygame.draw.rect(s, taillight, (21, 52, 5, 3), border_radius=1)
+    # Auspuff-Andeutung
+    pygame.draw.rect(s, (80, 80, 90), (14, 56, 4, 2))
+
+    # Team-Logo (weisser Fleck auf der Motorhaube)
+    pygame.draw.rect(s, (250, 250, 250), (13, 14, 6, 4), border_radius=1)
+    pygame.draw.rect(s, body_color, (14, 15, 4, 2))
     return s
 
 
@@ -2555,7 +2600,7 @@ async def run_race(screen, route, save_data, fonts):
     }
     haybale_sprite = make_haybale_sprite()
     photo_moto_sprite = make_photo_motorbike_sprite()
-    team_car_sprite = make_team_car_sprite()
+    team_car_sprites = [make_team_car_sprite(c) for c in TEAM_CAR_COLORS]
     heli_shadow_sprite = make_helicopter_shadow_sprite()
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
@@ -2739,7 +2784,7 @@ async def run_race(screen, route, save_data, fonts):
             # Foto-Motorrad: spawnt knapp am unteren Bildrand und ueberholt.
             next_moto_t -= dt
             if next_moto_t <= 0:
-                next_moto_t = random.uniform(10, 22)
+                next_moto_t = random.uniform(4, 10)
                 side = random.choice([-1, 1])
                 offset = side * (ROAD_WIDTH // 2 - 14)
                 vehicles.append(Vehicle(
@@ -2749,17 +2794,18 @@ async def run_race(screen, route, save_data, fonts):
                     sprite=photo_moto_sprite,
                 ))
             # Teamwagen: spawnt knapp vor dem Spieler oben am Bildrand und
-            # faellt langsam zurueck, bis er hinten ausm Bild ist.
+            # faellt langsam zurueck, bis er hinten ausm Bild ist. Zufaellige
+            # Team-Farbe pro Spawn.
             next_car_t -= dt
             if next_car_t <= 0:
-                next_car_t = random.uniform(14, 28)
+                next_car_t = random.uniform(6, 14)
                 side = random.choice([-1, 1])
                 offset = side * (ROAD_WIDTH // 2 - 18)
                 vehicles.append(Vehicle(
                     distance=player.distance + view_front * 0.85,
                     lane_offset=offset,
                     speed_kmh=max(player.speed - random.uniform(3, 7), 24),
-                    sprite=team_car_sprite,
+                    sprite=random.choice(team_car_sprites),
                 ))
             # Heli-Schatten driftet quer über den Bildschirm. Außerhalb des
             # Renn-Geschehens, also reine Screen-Animation.
