@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v9"
+VERSION = "v10"
 
 
 def _detect_touch():
@@ -2791,9 +2791,8 @@ async def run_race(screen, route, save_data, fonts):
                 b.update(dt)
             for v in vehicles:
                 v.update(dt)
-            # Sichtbares Bild reicht von player.distance - (H-PLAYER_Y)/PX_PER_M
-            # (unterer Bildrand) bis +PLAYER_Y/PX_PER_M (oben unter HUD).
-            view_back = (H - PLAYER_Y) / PX_PER_M  # ~19m fuer 960h
+            # view_front: Distanz vom Spieler bis zum oberen sichtbaren Bildrand
+            # (unter der HUD). Spawn-Polster liegt jenseits davon.
             view_front = (PLAYER_Y - HUD_H) / PX_PER_M  # ~14m fuer 960h
             # Fahrzeuge spawnen JENSEITS des oberen Bildrands (also weiter vorne
             # auf der Strecke), bewegen sich langsamer als der Spieler und
