@@ -688,6 +688,155 @@ def make_rock_obstacle_sprite():
     return s
 
 
+def make_diablo_spectator_sprite():
+    """Der berühmte Tour-Devil-Fan: roter Anzug, Dreizack, Hörner."""
+    s = pygame.Surface((16, 26), pygame.SRCALPHA)
+    skin = (220, 195, 165)
+    red = (210, 30, 30)
+    dark = (140, 20, 20)
+    yellow = (250, 210, 60)
+    # Hörner
+    pygame.draw.polygon(s, dark, [(3, 5), (6, 0), (6, 5)])
+    pygame.draw.polygon(s, dark, [(12, 5), (9, 0), (9, 5)])
+    # Kopf
+    pygame.draw.rect(s, skin, (5, 4, 5, 4))
+    # Roter Anzug
+    pygame.draw.rect(s, red, (3, 9, 9, 10))
+    pygame.draw.rect(s, yellow, (5, 11, 1, 6))
+    pygame.draw.rect(s, yellow, (9, 11, 1, 6))
+    # Beine
+    pygame.draw.rect(s, red, (3, 19, 3, 5))
+    pygame.draw.rect(s, red, (9, 19, 3, 5))
+    # Dreizack rechts
+    pygame.draw.line(s, (60, 60, 70), (13, 8), (13, 22), 2)
+    pygame.draw.polygon(s, yellow, [(11, 6), (13, 0), (15, 6), (13, 4)])
+    return s
+
+
+def make_drummer_spectator_sprite():
+    """Zuschauer mit Trommel — typisch in Bergetappen."""
+    s = pygame.Surface((16, 24), pygame.SRCALPHA)
+    skin = (225, 195, 160)
+    shirt = (60, 130, 220)
+    pants = (40, 50, 70)
+    drum_red = (190, 60, 60)
+    drum_top = (240, 220, 180)
+    # Kopf
+    pygame.draw.rect(s, (60, 40, 25), (5, 0, 5, 2))
+    pygame.draw.rect(s, skin, (5, 2, 5, 3))
+    # Körper
+    pygame.draw.rect(s, shirt, (4, 5, 7, 6))
+    # Trommel
+    pygame.draw.ellipse(s, drum_red, (2, 10, 12, 9))
+    pygame.draw.ellipse(s, drum_top, (3, 10, 10, 5))
+    # Arme schlagen Trommel
+    pygame.draw.rect(s, skin, (1, 8, 2, 4))
+    pygame.draw.rect(s, skin, (13, 8, 2, 4))
+    pygame.draw.rect(s, (220, 200, 160), (0, 12, 3, 2))
+    pygame.draw.rect(s, (220, 200, 160), (13, 12, 3, 2))
+    # Beine
+    pygame.draw.rect(s, pants, (4, 19, 3, 4))
+    pygame.draw.rect(s, pants, (9, 19, 3, 4))
+    return s
+
+
+SPONSORS = [
+    ("CIAO",     (220, 80, 60)),
+    ("VELO+",    (40, 120, 200)),
+    ("PEDALE",   (235, 195, 60)),
+    ("BIKEPRO",  (50, 160, 90)),
+    ("CARBONIA", (140, 60, 180)),
+    ("FORZA",    (240, 110, 40)),
+]
+
+
+def make_sponsor_barrier_sprite(color=(50, 130, 220)):
+    """Absperrgitter mit Werbebanner — wie an echten Renn-Zielgeraden."""
+    s = pygame.Surface((42, 20), pygame.SRCALPHA)
+    rail = (190, 190, 195)
+    pygame.draw.rect(s, color, (0, 6, 42, 12))
+    pygame.draw.rect(s, (250, 250, 250), (0, 6, 42, 1))
+    pygame.draw.rect(s, (30, 30, 40), (0, 17, 42, 1))
+    for x in (6, 20, 34):
+        pygame.draw.rect(s, (255, 255, 255), (x - 2, 9, 4, 4))
+    pygame.draw.rect(s, rail, (0, 4, 42, 1))
+    pygame.draw.rect(s, rail, (4, 4, 1, 14))
+    pygame.draw.rect(s, rail, (20, 4, 1, 14))
+    pygame.draw.rect(s, rail, (36, 4, 1, 14))
+    return s
+
+
+def make_km_sign_sprite(text="100m"):
+    """Hölzernes Distanz-Schild am Straßenrand."""
+    s = pygame.Surface((24, 30), pygame.SRCALPHA)
+    pygame.draw.rect(s, (110, 75, 40), (11, 14, 3, 16))
+    pygame.draw.rect(s, (245, 245, 235), (0, 4, 24, 12))
+    pygame.draw.rect(s, (60, 60, 70), (0, 4, 24, 12), 1)
+    font = pygame.font.Font(None, 16)
+    t = font.render(text, True, (40, 40, 50))
+    s.blit(t, ((24 - t.get_width()) // 2, 6))
+    return s
+
+
+def make_gantry_sprite(text="", color=(60, 130, 220), kind="banner"):
+    """Banner-Gantry über der Strecke: Start, Sponsor, Flamme Rouge, Ziel.
+    Breite passt sich grob an ROAD_WIDTH an, damit Pfosten am Straßenrand
+    landen."""
+    w = max(200, ROAD_WIDTH + 50)
+    h = 76
+    s = pygame.Surface((w, h), pygame.SRCALPHA)
+    post = (38, 38, 46)
+    # Pfosten + Querbalken
+    pygame.draw.rect(s, post, (6, 24, 6, h - 24))
+    pygame.draw.rect(s, post, (w - 12, 24, 6, h - 24))
+    pygame.draw.rect(s, post, (4, 22, w - 8, 4))
+    pygame.draw.rect(s, (60, 60, 72), (4, 22, w - 8, 1))
+
+    if kind == "flamme":
+        cx = w // 2
+        kite = [(cx - 30, 28), (cx + 30, 28),
+                (cx + 18, 56), (cx, 68), (cx - 18, 56)]
+        pygame.draw.polygon(s, (210, 30, 30), kite)
+        pygame.draw.polygon(s, (255, 255, 255), kite, 1)
+        font = pygame.font.Font(None, 18)
+        t = font.render(text or "FLAMME ROUGE", True, (245, 245, 245))
+        s.blit(t, ((w - t.get_width()) // 2, 4))
+    elif kind == "finish":
+        # Karo-Banner oben + ZIEL-Text darunter
+        banner_h = 18
+        ncols = 14
+        cell = (w - 24) / ncols
+        for c in range(ncols):
+            cc = (250, 250, 250) if c % 2 == 0 else (30, 30, 35)
+            pygame.draw.rect(s, cc, (12 + c * cell, 2, cell + 1, banner_h))
+        font = pygame.font.Font(None, 26)
+        t = font.render(text or "ZIEL", True, (250, 210, 60))
+        s.blit(t, ((w - t.get_width()) // 2, banner_h + 2))
+    else:
+        banner_h = 20
+        pygame.draw.rect(s, color, (12, 2, w - 24, banner_h))
+        pygame.draw.rect(s, (255, 255, 255), (12, 2, w - 24, 2))
+        pygame.draw.rect(s, (255, 255, 255), (12, banner_h, w - 24, 2))
+        font = pygame.font.Font(None, 20)
+        t = font.render(text, True, (255, 255, 255))
+        s.blit(t, ((w - t.get_width()) // 2, 4))
+    return s
+
+
+ASPHALT_TAGS = ["ALLEZ", "VIVA", "GO GO", "HOP HOP", "DAJE", "FORZA"]
+
+
+def make_asphalt_paint_sprite(text="ALLEZ"):
+    """Bemaltes Asphalt-Tag (Kreide-Schrift) in Renn-Mitte."""
+    w, h = 100, 26
+    s = pygame.Surface((w, h), pygame.SRCALPHA)
+    font = pygame.font.Font(None, 28)
+    t = font.render(text, True, (250, 250, 240))
+    t.set_alpha(150)
+    s.blit(t, ((w - t.get_width()) // 2, (h - t.get_height()) // 2))
+    return s
+
+
 def make_decor_sprites():
     d = {
         "pine":        make_pine_sprite(),
@@ -711,14 +860,21 @@ def make_decor_sprites():
         "flower_pink":   make_flower_sprite((240, 80, 120)),
         "flower_yellow": make_flower_sprite((250, 220, 70)),
         "flower_white":  make_flower_sprite((250, 250, 250)),
+        "diablo":        make_diablo_spectator_sprite(),
+        "drummer":       make_drummer_spectator_sprite(),
+        "km_sign":       make_km_sign_sprite(),  # Default; richtige Texte in run_race
     }
     for i, col in enumerate(SPECTATOR_COLORS):
         d[f"spec_{i}_up"] = make_spectator_sprite(col, arms_up=True)
         d[f"spec_{i}_dn"] = make_spectator_sprite(col, arms_up=False)
+    for i, (_name, col) in enumerate(SPONSORS):
+        d[f"barrier_{i}"] = make_sponsor_barrier_sprite(col)
     return d
 
 
 SPECTATOR_KINDS = [f"spec_{i}" for i in range(len(SPECTATOR_COLORS))]
+SPECIAL_SPECTATORS = ["diablo", "drummer"]
+BARRIER_KINDS = [f"barrier_{i}" for i in range(len(SPONSORS))]
 
 
 def make_star_sprite(filled=True, size=14):
@@ -1157,20 +1313,31 @@ def spawn_clutter_ahead(player, decor, theme_data, next_distance):
     return next_distance
 
 
-def spawn_spectators_ahead(player, decor, next_distance):
+def spawn_spectators_ahead(player, decor, next_distance, hype=1.0):
     """Zuschauer am Straßenrand. Dichter gepackt und näher dran als normale Deko,
-    oft in kleinen Gruppen."""
+    oft in kleinen Gruppen. `hype` skaliert die Wahrscheinlichkeit für Sponsor-
+    Barrieren und Special-Fans (Diablo, Trommler) — vorm Ziel hochziehen."""
     horizon = player.distance + 240
     while next_distance < horizon:
         rc = road_curve(next_distance)
         side = random.choice([-1, 1])
+        # Hin und wieder eine Sponsor-Barriere statt Fan-Gruppe direkt am Rand
+        if random.random() < 0.18 * hype:
+            offset = ROAD_WIDTH // 2 + random.randint(4, 10)
+            x = rc + side * offset
+            decor.append(Decor(next_distance, x, random.choice(BARRIER_KINDS)))
+            next_distance += random.uniform(8, 18)
+            continue
         group = random.randint(1, 4)
         for _ in range(group):
             offset = ROAD_WIDTH // 2 + random.randint(8, 28)
             jitter_d = random.uniform(-1.5, 1.5)
             jitter_x = random.uniform(-6, 6)
             x = rc + side * offset + jitter_x
-            kind = random.choice(SPECTATOR_KINDS)
+            if random.random() < 0.06 * hype:
+                kind = random.choice(SPECIAL_SPECTATORS)
+            else:
+                kind = random.choice(SPECTATOR_KINDS)
             decor.append(Decor(next_distance + jitter_d, x, kind))
         next_distance += random.uniform(14, 38)
     return next_distance
@@ -1830,6 +1997,50 @@ async def run_race(screen, route, save_data, fonts):
     goodie_sprites = {k: make_goodie_sprite(k) for k in ("bottle", "gel", "bar")}
     decor_sprites = make_decor_sprites()
 
+    # KM-Schilder an festen Distanzen vorm Ziel — abhängig davon, wie lang die
+    # Strecke wirklich ist, schmeißen wir die kurzen mit rein.
+    for m in (500, 400, 300, 200, 100, 50):
+        sign_d = distance_target - m
+        if sign_d < 25:
+            continue
+        rc_sign = road_curve(sign_d)
+        side = random.choice([-1, 1])
+        x = rc_sign + side * (ROAD_WIDTH // 2 + 24)
+        key = f"km_{m}"
+        if key not in decor_sprites:
+            decor_sprites[key] = make_km_sign_sprite(f"{m}m")
+        decor.append(Decor(sign_d, x, key))
+
+    # Banner-Gantries über der Strecke: Start, Sponsoren, Flamme Rouge, Ziel.
+    # Die werden in decor abgelegt — gleicher Render-Pfad wie alles andere,
+    # nur die Sprites sind streckenspezifisch gerendert und werden hier in
+    # decor_sprites registriert.
+    gantry_specs = [(12.0, "START", (60, 180, 90), "banner")]
+    sd = 90.0
+    while sd < distance_target - 100:
+        name, col = random.choice(SPONSORS)
+        gantry_specs.append((sd, name, col, "banner"))
+        sd += random.uniform(95, 150)
+    fr_d = distance_target - 60 if distance_target > 140 else distance_target * 0.75
+    gantry_specs.append((fr_d, "", (210, 30, 30), "flamme"))
+    gantry_specs.append((distance_target + 1.0, "ZIEL", (250, 210, 60), "finish"))
+    for i, (gd, text, color, kind) in enumerate(gantry_specs):
+        key = f"gantry_{i}"
+        decor_sprites[key] = make_gantry_sprite(text, color, kind)
+        decor.append(Decor(gd, road_curve(gd), key))
+
+    # Bemaltes Asphalt (Kreide-Tags) alle ~70m mitten auf der Straße.
+    paints = []
+    paint_cache = {}
+    pd = 40.0
+    while pd < distance_target - 30:
+        text = random.choice(ASPHALT_TAGS)
+        if text not in paint_cache:
+            paint_cache[text] = make_asphalt_paint_sprite(text)
+        rc_p = road_curve(pd)
+        paints.append((pd, rc_p + random.uniform(-30, 30), paint_cache[text]))
+        pd += random.uniform(55, 130)
+
     def build_touch():
         # Zurück (post-Finish) und Menü-Knopf sind UI-Affordances und immer
         # sichtbar — Steuerkreuz und TRINK nur, wenn wir wirklich Touch sind.
@@ -1920,7 +2131,10 @@ async def run_race(screen, route, save_data, fonts):
                 next_hazard_d = spawn_weather_hazards_ahead(player, obstacles, next_hazard_d, "snowpatch")
             next_goodie_d = spawn_goodies_ahead(player, goodies, next_goodie_d)
             next_decor_d = spawn_decor_ahead(player, decor, theme_data, next_decor_d)
-            next_spec_d = spawn_spectators_ahead(player, decor, next_spec_d)
+            # Vor der Ziellinie heizen die Tribünen mehr auf: doppelt so viele
+            # Sponsor-Barrieren und Special-Fans.
+            hype = 2.2 if (distance_target - player.distance) < 120 else 1.0
+            next_spec_d = spawn_spectators_ahead(player, decor, next_spec_d, hype=hype)
             next_clutter_d = spawn_clutter_ahead(player, decor, theme_data, next_clutter_d)
             if strong_wind:
                 next_bale_t -= dt
@@ -1953,6 +2167,7 @@ async def run_race(screen, route, save_data, fonts):
                           if not g.collected and g.distance > player.distance - cull_behind]
             decor[:] = [d for d in decor if d.distance > player.distance - cull_behind]
             bales[:] = [b for b in bales if b.alive and b.distance > player.distance - cull_behind]
+            paints[:] = [p for p in paints if p[0] > player.distance - cull_behind]
             if player.distance >= distance_target:
                 state = "finished"
                 final_position = player_position(player, opponents)
@@ -1979,6 +2194,9 @@ async def run_race(screen, route, save_data, fonts):
         recent_pickup_t = max(0.0, recent_pickup_t - dt)
 
         draw_road(screen, player, theme_data)
+        # Asphalt-Tags zuerst — gehören direkt auf den Belag.
+        for pdist, px, pspr in paints:
+            draw_world_obj(screen, pdist, px, pspr, player)
         anim_t = pygame.time.get_ticks() / 220.0
         for d in sorted(decor, key=lambda x: x.distance, reverse=True):
             if d.kind.startswith("spec_"):
