@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v22"
+VERSION = "v23"
 
 
 def _detect_touch():
@@ -103,6 +103,28 @@ def _display_flags():
     return 0 if IS_WEB else pygame.RESIZABLE
 
 
+def _sync_pygbag_layout(w, h):
+    """Pygbag rechnet sein CSS-Canvas-Layout aus config.fb_ar — eingefroren
+    beim Page-Load. Wenn auf Mobile die URL-Bar nach dem Init kollabiert
+    (oder ein Reorientation passiert), bleibt das alte Aspect → graue Bars.
+    Wir aktualisieren die Config und stossen window_resize() an, damit
+    pygbag neu layoutet."""
+    if not IS_WEB:
+        return
+    try:
+        from js import window  # type: ignore
+        cfg = getattr(window, "config", None)
+        if cfg is not None:
+            cfg.fb_width = str(w)
+            cfg.fb_height = str(h)
+            cfg.fb_ar = w / h
+        wr = getattr(window, "window_resize", None)
+        if callable(wr):
+            wr()
+    except Exception:
+        pass
+
+
 def maybe_resize(screen, fonts):
     """Falls sich Browser-Viewport oder Native-Fenster geändert haben:
     set_mode neu, Layout-Globals und Fonts aktualisieren. Touch-Layouts
@@ -116,6 +138,7 @@ def maybe_resize(screen, fonts):
     _apply_window_size(nw, nh)
     screen = pygame.display.set_mode((W, H), _display_flags())
     _rebuild_fonts(fonts)
+    _sync_pygbag_layout(W, H)
     return screen, True
 PX_PER_M = 25
 MIN_SPEED = 8
