@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v15"
+VERSION = "v17"
 
 
 def _detect_touch():
@@ -268,6 +268,7 @@ def load_save():
     if data["difficulty"] not in DIFFICULTY_ORDER:
         data["difficulty"] = "medium"
     data.setdefault("music_muted", False)
+    data.setdefault("sfx_muted", False)
     data.setdefault("music_volume", DEFAULT_VOLUME_KEY)
     if data["music_volume"] not in VOLUME_ORDER:
         data["music_volume"] = DEFAULT_VOLUME_KEY
@@ -454,9 +455,14 @@ def _apply_music_volume(save_data):
 
 def music_init(save_data):
     """Versucht pygame.mixer zu initialisieren und den Loop zu erzeugen. Schluckt
-    Fehler — ohne Sound spielt das Spiel trotzdem."""
+    Fehler — ohne Sound spielt das Spiel trotzdem.
+
+    buffer=2048 (statt Default 512) verhindert Underruns im Browser, wenn die
+    Main-Loop kurz blockt (z. B. waehrend Input-Verarbeitung). Sonst rauscht
+    die Musik bei jedem Tasten-/Tap-Event."""
     try:
-        pygame.mixer.init(frequency=MUSIC_SAMPLE_RATE, size=-16, channels=2)
+        pygame.mixer.init(frequency=MUSIC_SAMPLE_RATE, size=-16, channels=2, buffer=2048)
+        pygame.mixer.set_num_channels(16)  # Platz fuer parallele SFX
         info = pygame.mixer.get_init()
         # Browser/OS kann eine andere Sample-Rate forcieren — Loop dann an die
         # echte Rate angleichen, damit Tonhoehe stimmt.
@@ -464,9 +470,12 @@ def music_init(save_data):
         raw = _generate_chiptune_loop(actual_sr)
         snd = pygame.mixer.Sound(buffer=raw)
         _MUSIC_STATE["sound"] = snd
+        _MUSIC_STATE["sample_rate"] = actual_sr
         _MUSIC_STATE["muted"] = bool(save_data.get("music_muted", False))
         _apply_music_volume(save_data)
         snd.play(loops=-1)
+        # SFX-Bibliothek erst bauen, nachdem mixer wirklich live ist.
+        _sfx_init(actual_sr)
     except Exception as exc:
         print(f"Musik-Init fehlgeschlagen: {exc}")
         _MUSIC_STATE["sound"] = None
@@ -496,6 +505,135 @@ def music_is_muted():
 
 def music_volume_label(save_data):
     return _volume_label(save_data.get("music_volume", DEFAULT_VOLUME_KEY))
+
+
+# ---------------------- Sound-Effekte ----------------------
+
+_SFX = {}
+
+
+def _samples_to_sound(samples):
+    """Konvertiert eine Liste von Float-Samples (-1..+1) in eine pygame
+    Stereo-Sound (Mono-Quelle in beide Kanaele dupliziert)."""
+    import array
+    arr = array.array("h")
+    for v in samples:
+        if v > 1.0:
+            v = 1.0
+        elif v < -1.0:
+            v = -1.0
+        s = int(v * 18000)
+        arr.append(s)
+        arr.append(s)
+    return pygame.mixer.Sound(buffer=arr.tobytes())
+
+
+def _sfx_chirp(start_hz, end_hz, dur_s, sr, wave="square", volume=0.3):
+    """Frequenz-Sweep mit AD-Envelope. Bei start==end: konstanter Ton."""
+    n = int(dur_s * sr)
+    if n <= 0:
+        return []
+    out = []
+    phase = 0.0
+    attack = max(1, min(40, n // 10))
+    for i in range(n):
+        t = i / max(1, n - 1)
+        freq = start_hz + (end_hz - start_hz) * t
+        phase += freq / sr
+        p = phase - int(phase)
+        if wave == "square":
+            v = volume if p < 0.5 else -volume
+        else:  # triangle
+            v = (p * 4 - 1) if p < 0.5 else (3 - p * 4)
+            v *= volume
+        # Envelope: kurzer Attack, exponentielle Decay-Huelle
+        if i < attack:
+            v *= i / attack
+        else:
+            v *= math.exp(-(i - attack) / (n / 2.5))
+        out.append(v)
+    return out
+
+
+def _sfx_noise(dur_s, sr, volume=0.3, decay=3.0):
+    """Weisses Rauschen mit Decay-Envelope."""
+    n = int(dur_s * sr)
+    if n <= 0:
+        return []
+    out = []
+    attack = max(1, min(30, n // 15))
+    for i in range(n):
+        v = (random.random() * 2 - 1) * volume
+        if i < attack:
+            v *= i / attack
+        else:
+            v *= math.exp(-(i - attack) / (n / decay))
+        out.append(v)
+    return out
+
+
+def _mix(a, b):
+    n = max(len(a), len(b))
+    out = []
+    for i in range(n):
+        va = a[i] if i < len(a) else 0.0
+        vb = b[i] if i < len(b) else 0.0
+        out.append(va + vb)
+    return out
+
+
+def _sfx_init(sr):
+    """Baut alle SFX-Sounds. Wird einmalig nach erfolgreichem Mixer-Init
+    aufgerufen."""
+    _SFX.clear()
+    # Pickup: schneller 3-Ton-Aufstieg
+    pickup = []
+    for f in (660, 880, 1320):
+        pickup.extend(_sfx_chirp(f, f, 0.05, sr, "square", 0.28))
+    _SFX["pickup"] = _samples_to_sound(pickup)
+    # Drink: tiefes Glucksen, Triangle-Welle abfallend
+    _SFX["drink"] = _samples_to_sound(_sfx_chirp(260, 90, 0.20, sr, "triangle", 0.32))
+    # Kleiner Hit (Ast, Pfuetze, Schneefeld): kurzer Noise-Pop
+    _SFX["hit_small"] = _samples_to_sound(_sfx_noise(0.12, sr, 0.30, decay=4))
+    # Grosser Hit (Schlagloch, Stein, Heuballen): Noise + tiefer Square-Sweep
+    big = _mix(
+        _sfx_noise(0.30, sr, 0.42, decay=2.8),
+        _sfx_chirp(150, 50, 0.30, sr, "square", 0.30),
+    )
+    _SFX["hit_big"] = _samples_to_sound(big)
+    # Finish-Fanfare: C-E-G aufsteigend, dann lang C6
+    finish = []
+    for note in ("C5", "E5", "G5"):
+        f = _NOTE_FREQS[note]
+        finish.extend(_sfx_chirp(f, f, 0.10, sr, "square", 0.32))
+    finish.extend(_sfx_chirp(_NOTE_FREQS["C6"], _NOTE_FREQS["C6"], 0.55, sr, "square", 0.34))
+    _SFX["finish"] = _samples_to_sound(finish)
+    # Crowd-Cheer: laenger, weicher Noise-Whoosh
+    _SFX["cheer"] = _samples_to_sound(_sfx_noise(0.65, sr, 0.22, decay=2.2))
+
+
+def sfx_toggle_mute(save_data):
+    save_data["sfx_muted"] = not save_data.get("sfx_muted", False)
+    save_state(save_data)
+
+
+def sfx_is_muted(save_data):
+    return bool(save_data.get("sfx_muted", False))
+
+
+def play_sfx(name, save_data, scale=1.0):
+    """Spielt einen SFX mit der aktuellen Lautstaerke-Einstellung. SFX-Mute
+    und Musik-Mute sind unabhaengig — beide werden separat geprueft. Wenn
+    der Mixer nicht da ist, wird stillschweigend nichts gemacht."""
+    snd = _SFX.get(name)
+    if not snd or sfx_is_muted(save_data):
+        return
+    vol = _volume_value(save_data.get("music_volume", DEFAULT_VOLUME_KEY))
+    try:
+        snd.set_volume(min(1.0, vol * scale))
+        snd.play()
+    except Exception:
+        pass
 
 
 def save_state(state):
@@ -2264,6 +2402,9 @@ OBSTACLE_REACH = {"pothole": 16, "branch": 18, "rock": 19, "puddle": 20, "snowpa
 
 
 def check_collisions(player, obstacles):
+    """Gibt eine Liste der Hindernis-Kinds zurueck, die in diesem Tick getroffen
+    wurden — wird im Race-Loop fuers SFX-Triggern verwendet."""
+    hits = []
     half_w = PLAYER_W // 2
     for o in obstacles:
         if o.hit:
@@ -2273,6 +2414,7 @@ def check_collisions(player, obstacles):
             reach = OBSTACLE_REACH.get(o.kind, 18)
             if abs(o.world_x - player.world_x) < half_w + reach - 6:
                 o.hit = True
+                hits.append(o.kind)
                 if o.kind == "pothole":
                     player.target_speed *= 0.45
                     player.speed *= 0.55
@@ -2300,9 +2442,12 @@ def check_collisions(player, obstacles):
                     player.flash_timer = 0.25
                 if o.kind in ("pothole", "branch", "rock"):
                     player.flash_timer = 0.25
+    return hits
 
 
 def check_haybales(player, bales):
+    """Gibt True zurueck wenn ein Heuballen den Spieler trifft."""
+    hit = False
     half_w = PLAYER_W // 2
     for b in bales:
         if b.hit:
@@ -2311,11 +2456,13 @@ def check_haybales(player, bales):
         if -0.4 < dd < 0.9:
             if abs(b.world_x - player.world_x) < half_w + 16:
                 b.hit = True
+                hit = True
                 player.target_speed *= 0.28
                 player.speed *= 0.38
                 player.crashed_timer = 0.65
                 player.energy = max(0, player.energy - 7)
                 player.flash_timer = 0.3
+    return hit
 
 
 def check_goodies(player, goodies):
@@ -2479,23 +2626,26 @@ async def run_menu(screen, save_data, fonts):
     clock = pygame.time.Clock()
     cursor = 0
     row_h = 64
-    # Layout: 0 = Musik, 1 = Lautstaerke, 2 = Schwierigkeit, 3 = Shop,
-    # 4..N+3 = Routen.
-    options_count = len(ROUTES) + 4
+    # Layout: 0 = Musik, 1 = Sounds, 2 = Lautstaerke, 3 = Schwierigkeit,
+    # 4 = Shop, 5..N+4 = Routen.
+    options_count = len(ROUTES) + 5
 
     def activate(idx):
         if idx == 0:
             music_toggle_mute(save_data)
             return None
         if idx == 1:
-            music_cycle_volume(save_data)
+            sfx_toggle_mute(save_data)
             return None
         if idx == 2:
-            cycle_difficulty(save_data)
+            music_cycle_volume(save_data)
             return None
         if idx == 3:
+            cycle_difficulty(save_data)
+            return None
+        if idx == 4:
             return ("shop", None)
-        return ("race", ROUTES[idx - 4])
+        return ("race", ROUTES[idx - 5])
 
     def build_layout():
         list_x = 20
@@ -2540,8 +2690,10 @@ async def run_menu(screen, save_data, fonts):
                     if cursor == 0:
                         music_toggle_mute(save_data)
                     elif cursor == 1:
-                        music_cycle_volume(save_data)
+                        sfx_toggle_mute(save_data)
                     elif cursor == 2:
+                        music_cycle_volume(save_data)
+                    elif cursor == 3:
                         cycle_difficulty(save_data)
                 if event.key == pygame.K_m:
                     music_toggle_mute(save_data)
@@ -2604,6 +2756,16 @@ async def run_menu(screen, save_data, fonts):
                 desc = fonts["small"].render("Tap / Enter / M: an- und ausschalten", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
             elif i == 1:
+                bg = (60, 50, 35) if sel else (38, 30, 22)
+                pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
+                if sel:
+                    pygame.draw.rect(screen, ORANGE, (list_x, y, list_w, row_h - 6), 2, border_radius=10)
+                sfx_lbl = "Aus" if sfx_is_muted(save_data) else "An"
+                name = fonts["mid"].render(f"Sounds: {sfx_lbl}", True, ORANGE)
+                screen.blit(name, (list_x + 14, y + 4))
+                desc = fonts["small"].render("Pickup, Crash, Trink, Konfetti, Jubel", True, HUD_DIM)
+                screen.blit(desc, (list_x + 14, y + 34))
+            elif i == 2:
                 bg = (55, 50, 65) if sel else (33, 30, 42)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -2612,7 +2774,7 @@ async def run_menu(screen, save_data, fonts):
                 screen.blit(name, (list_x + 14, y + 4))
                 desc = fonts["small"].render("Tap / Enter: durchschalten (Leise · Mittel · Laut)", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
-            elif i == 2:
+            elif i == 3:
                 bg = (50, 50, 70) if sel else (30, 32, 46)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -2623,7 +2785,7 @@ async def run_menu(screen, save_data, fonts):
                 screen.blit(name, (list_x + 14, y + 4))
                 desc = fonts["small"].render("Tap / Enter: wechseln (Leicht · Mittel · Schwer)", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
-            elif i == 3:
+            elif i == 4:
                 bg = (60, 50, 30) if sel else (40, 35, 25)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -2633,7 +2795,7 @@ async def run_menu(screen, save_data, fonts):
                 desc = fonts["small"].render("Punkte ausgeben, Rad aufmotzen", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
             else:
-                r = ROUTES[i - 4]
+                r = ROUTES[i - 5]
                 bg = (40, 52, 80) if sel else (28, 32, 48)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -2918,6 +3080,7 @@ async def run_race(screen, route, save_data, fonts):
     heli_vx = 0.0
     confetti = []
     confetti_extra_t = 0.0  # Nachburst-Timer fuers Streumuster
+    cheer_t = 0.0  # Ambient-Crowd-Roar-Timer in der Flamme-Rouge-Zone
     spawn_density = route["obstacle_density"] * preset["obstacle_mult"]
     distance_target = route["distance_m"]
 
@@ -3101,7 +3264,8 @@ async def run_race(screen, route, save_data, fonts):
                 if event.key == pygame.K_ESCAPE:
                     return
                 if event.key == pygame.K_SPACE and state == "racing":
-                    player.drink()
+                    if player.drink():
+                        play_sfx("drink", save_data)
                 if event.key == pygame.K_RETURN and state == "finished":
                     return
                 if event.key == pygame.K_m:
@@ -3121,7 +3285,8 @@ async def run_race(screen, route, save_data, fonts):
                     if key == "esc":
                         return
                     if key == "drink":
-                        player.drink()
+                        if player.drink():
+                            play_sfx("drink", save_data)
 
         keys = pygame.key.get_pressed()
         pressed_touch = touch.pressed_keys() if state == "racing" else set()
@@ -3189,6 +3354,15 @@ async def run_race(screen, route, save_data, fonts):
                     speed_kmh=max(player.speed - random.uniform(6, 12), 22),
                     sprite=random.choice(team_car_sprites),
                 ))
+            # Ambient-Crowd-Roar in der Flamme-Rouge-Zone: zufaellige kleine
+            # Cheer-Bursts, ein Bisschen Tribuenen-Stimmung.
+            if 0 < (distance_target - player.distance) < 90:
+                cheer_t -= dt
+                if cheer_t <= 0:
+                    play_sfx("cheer", save_data, scale=0.5)
+                    cheer_t = random.uniform(1.5, 3.0)
+            else:
+                cheer_t = 0.4  # bereit bei Eintritt in die Zone
             # Heli-Schatten driftet quer über den Bildschirm. Außerhalb des
             # Renn-Geschehens, also reine Screen-Animation.
             if heli_active:
@@ -3205,12 +3379,19 @@ async def run_race(screen, route, save_data, fonts):
                     heli_vx = (90 if side == 1 else -90) * random.uniform(0.9, 1.4)
                     heli_y = float(HUD_H + 30 + random.uniform(0, max(40, H * 0.35)))
             update_weather_particles(rain_particles, snow_particles, wind_particles, dt)
-            check_collisions(player, obstacles)
-            check_haybales(player, bales)
+            hits = check_collisions(player, obstacles)
+            for kind in hits:
+                if kind in ("pothole", "rock"):
+                    play_sfx("hit_big", save_data)
+                else:
+                    play_sfx("hit_small", save_data)
+            if check_haybales(player, bales):
+                play_sfx("hit_big", save_data)
             picked = check_goodies(player, goodies)
             if picked:
                 recent_pickup = picked[-1]
                 recent_pickup_t = 1.5
+                play_sfx("pickup", save_data)
             # Sichtbar bis sie unten aus dem Bild fallen. Spieler sitzt bei
             # PLAYER_Y, die Welt rollt nach unten — also (H - PLAYER_Y) / PX_PER_M
             # Meter passen unter den Spieler. Plus etwas Reserve für hohe Sprites.
@@ -3252,6 +3433,8 @@ async def run_race(screen, route, save_data, fonts):
                 # Konfetti-Buom!
                 confetti.extend(spawn_confetti(160))
                 confetti_extra_t = 1.2
+                play_sfx("finish", save_data)
+                play_sfx("cheer", save_data, scale=1.4)
 
         # Konfetti animiert in jedem State weiter — wir wollen das auch nach
         # dem Zieleinlauf sehen.
