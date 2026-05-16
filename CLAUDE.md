@@ -10,11 +10,12 @@ Radgame ist ein Top-Down-Pixel-Art-Rennradspiel in Python/Pygame. Single-Player.
 
 ```bash
 ./run.sh                            # startet das Spiel (venv wird ggf. angelegt)
-.venv/bin/python -m py_compile main.py routes.py   # Syntax-Check (es gibt keine echten Tests)
-.venv/bin/pip install -r requirements.txt           # Deps neu
+.venv/bin/python -m py_compile main.py routes.py   # Syntax-Check
+.venv/bin/ruff check .              # CI lintet damit — vor jedem Push lokal laufen lassen!
+.venv/bin/pip install -r requirements.txt          # Deps neu
 ```
 
-Es gibt keine Lint- oder Test-Suite. Pygame-Apps laufen sinnvoll nur in einer grafischen Umgebung — im Headless-Container kann man nur Syntax/Import prüfen, nicht den Game-Loop.
+Pygame-Apps laufen sinnvoll nur in einer grafischen Umgebung — im Headless-Container kann man nur Syntax/Import/Lint prüfen, nicht den Game-Loop.
 
 ## Architektur (Kurz)
 
