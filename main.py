@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v4"
+VERSION = "v5"
 
 
 def _detect_touch():
@@ -1055,21 +1055,52 @@ def make_old_stone_wall_sprite():
 
 
 def make_helicopter_shadow_sprite():
-    """Schwebender Heli-Schatten: dunkler Blob mit Heckausleger und vier
-    Rotorblättern. Semi-transparent, damit der Asphalt durchschimmert."""
-    w, h = 120, 56
+    """Heli-Schatten aus der Vogelperspektive (wir schauen von oben auf den
+    Heli, der hoch ueber der Strasse fliegt).
+
+    Form so wie bei TV-Begleithelis im Radsport (z. B. AS350):
+    - grosse halbtransparente Rotor-Scheibe ueber der Kabine
+    - kompakte ovale Kabine mit Cockpit-Spitze vorne (links im Sprite)
+    - duenner, langer Heckausleger nach hinten (rechts)
+    - kleiner Heckrotor mit eigener Scheibe am Ende
+    """
+    w, h = 160, 70
     s = pygame.Surface((w, h), pygame.SRCALPHA)
-    # Body
-    pygame.draw.ellipse(s, (0, 0, 0, 90), (14, 12, w - 28, h - 24))
-    # Heckausleger
-    pygame.draw.rect(s, (0, 0, 0, 70), (w - 26, h // 2 - 3, 24, 6))
-    pygame.draw.ellipse(s, (0, 0, 0, 80), (w - 12, h // 2 - 6, 10, 12))
-    # Rotorblätter (vier statt rotierend — kürzt sich aufm Asphalt eh ab)
-    cx, cy = w // 2 - 12, h // 2
-    for a in (0.2, 1.7, 3.3, 4.9):
-        x2 = cx + math.cos(a) * 42
-        y2 = cy + math.sin(a) * 16
-        pygame.draw.line(s, (0, 0, 0, 55), (cx, cy), (x2, y2), 4)
+    cx, cy = 48, h // 2
+
+    # Rotor-Scheibe: weicher, leicht abgestufter Kreis (drehende Blaetter
+    # erzeugen einen kreisrunden Schatten ueber Kabine + drumherum).
+    for r, alpha in ((42, 22), (36, 32), (30, 44), (24, 56)):
+        pygame.draw.circle(s, (0, 0, 0, alpha), (cx, cy), r)
+
+    # Zwei Blattposen schraeg ueberlagert, damit man den Rotor sieht.
+    for ang_deg in (20, 110, 200, 290):
+        ang = math.radians(ang_deg)
+        ex = cx + int(math.cos(ang) * 42)
+        ey = cy + int(math.sin(ang) * 38)
+        pygame.draw.line(s, (0, 0, 0, 70), (cx, cy), (ex, ey), 3)
+
+    # Kabine: ovaler Koerper, dunkel — Cockpit-Front leicht spitz nach links.
+    pygame.draw.ellipse(s, (0, 0, 0, 150), (cx - 18, cy - 10, 36, 20))
+    pygame.draw.polygon(s, (0, 0, 0, 140),
+                        [(cx - 18, cy - 6), (cx - 28, cy), (cx - 18, cy + 6)])
+
+    # Kufen (Landegestell): zwei duenne Linien laengs unter dem Koerper.
+    pygame.draw.line(s, (0, 0, 0, 110), (cx - 18, cy - 12), (cx + 14, cy - 12), 2)
+    pygame.draw.line(s, (0, 0, 0, 110), (cx - 18, cy + 12), (cx + 14, cy + 12), 2)
+
+    # Heckausleger: lange duenne Linie nach rechts, leicht konisch.
+    pygame.draw.polygon(s, (0, 0, 0, 130),
+                        [(cx + 14, cy - 4), (cx + 14, cy + 4),
+                         (cx + 92, cy + 2), (cx + 92, cy - 2)])
+    # Hoehenleitwerk (kleine waagerechte Finne)
+    pygame.draw.rect(s, (0, 0, 0, 130), (cx + 80, cy - 9, 10, 4))
+
+    # Heckrotor: kleine Scheibe am Ende, ein Blatt-Strich quer.
+    tx, ty = cx + 96, cy
+    pygame.draw.circle(s, (0, 0, 0, 35), (tx, ty), 11)
+    pygame.draw.circle(s, (0, 0, 0, 65), (tx, ty), 6)
+    pygame.draw.line(s, (0, 0, 0, 110), (tx, ty - 10), (tx, ty + 10), 2)
     return s
 
 
@@ -2699,28 +2730,35 @@ async def run_race(screen, route, save_data, fonts):
                 b.update(dt)
             for v in vehicles:
                 v.update(dt)
-            # Foto-Motorrad: kommt von hinten und überholt schneller als der Spieler.
+            # Sichtbares Bild reicht von player.distance - (H-PLAYER_Y)/PX_PER_M
+            # (unterer Bildrand) bis +PLAYER_Y/PX_PER_M (oben unter HUD).
+            # Fahrzeuge muessen IM sichtbaren Bereich spawnen, sonst werden
+            # sie sofort vom Cull weggeraeumt.
+            view_back = (H - PLAYER_Y) / PX_PER_M  # ~19m fuer 960h
+            view_front = (PLAYER_Y - HUD_H) / PX_PER_M  # ~14m fuer 960h
+            # Foto-Motorrad: spawnt knapp am unteren Bildrand und ueberholt.
             next_moto_t -= dt
             if next_moto_t <= 0:
-                next_moto_t = random.uniform(14, 28)
+                next_moto_t = random.uniform(10, 22)
                 side = random.choice([-1, 1])
                 offset = side * (ROAD_WIDTH // 2 - 14)
                 vehicles.append(Vehicle(
-                    distance=player.distance - 28,
+                    distance=player.distance - view_back * 0.9,
                     lane_offset=offset,
-                    speed_kmh=max(player.speed + random.uniform(6, 12), 38),
+                    speed_kmh=max(player.speed + random.uniform(8, 14), 40),
                     sprite=photo_moto_sprite,
                 ))
-            # Teamwagen: hängt knapp hinterm Pulk, etwas langsamer.
+            # Teamwagen: spawnt knapp vor dem Spieler oben am Bildrand und
+            # faellt langsam zurueck, bis er hinten ausm Bild ist.
             next_car_t -= dt
             if next_car_t <= 0:
-                next_car_t = random.uniform(18, 35)
+                next_car_t = random.uniform(14, 28)
                 side = random.choice([-1, 1])
                 offset = side * (ROAD_WIDTH // 2 - 18)
                 vehicles.append(Vehicle(
-                    distance=player.distance - 40,
+                    distance=player.distance + view_front * 0.85,
                     lane_offset=offset,
-                    speed_kmh=max(player.speed - random.uniform(2, 6), 26),
+                    speed_kmh=max(player.speed - random.uniform(3, 7), 24),
                     sprite=team_car_sprite,
                 ))
             # Heli-Schatten driftet quer über den Bildschirm. Außerhalb des
@@ -2755,8 +2793,11 @@ async def run_race(screen, route, save_data, fonts):
             decor[:] = [d for d in decor if d.distance > player.distance - cull_behind]
             bales[:] = [b for b in bales if b.alive and b.distance > player.distance - cull_behind]
             paints[:] = [p for p in paints if p[0] > player.distance - cull_behind]
+            # Vehicles: bis kurz hinterm unteren Bildrand bzw. oberhalb der HUD
+            # noch sichtbar — danach raus.
+            cull_ahead = (PLAYER_Y - HUD_H) / PX_PER_M + 6
             vehicles[:] = [v for v in vehicles
-                           if -cull_behind < (v.distance - player.distance) < 140]
+                           if -cull_behind < (v.distance - player.distance) < cull_ahead]
             if player.distance >= distance_target:
                 state = "finished"
                 final_position = player_position(player, opponents)
