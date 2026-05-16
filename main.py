@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v13"
+VERSION = "v14"
 
 
 def _detect_touch():
@@ -285,6 +285,139 @@ def load_save():
                 spent += it.get("cost", 0)
         data["xp"] = data["points"] + spent
     return data
+
+
+# ---------------------- 8-Bit-Chiptune-Hintergrundmusik ----------------------
+
+MUSIC_SAMPLE_RATE = 22050
+
+# Frequenzen fuer 12-Ton-Equal-Temperament. Octave-Bezeichnung: Mittel-C = C4.
+_NOTE_FREQS = {
+    "C3": 130.81, "D3": 146.83, "Eb3": 155.56, "E3": 164.81, "F3": 174.61,
+    "G3": 196.00, "A3": 220.00, "B3": 246.94,
+    "C4": 261.63, "D4": 293.66, "Eb4": 311.13, "E4": 329.63, "F4": 349.23,
+    "G4": 392.00, "A4": 440.00, "B4": 493.88,
+    "C5": 523.25, "D5": 587.33, "Eb5": 622.25, "E5": 659.25, "F5": 698.46,
+    "G5": 783.99, "A5": 880.00, "B5": 987.77, "C6": 1046.50,
+    "-": 0.0,
+}
+
+
+def _synth_voice(notes, sample_rate, wave="square", volume=0.22):
+    """Erzeugt eine einzelne Stimme als Liste von Float-Samples (-1..+1).
+    notes ist eine Sequenz von (note_name, duration_seconds)-Tupeln."""
+    out = []
+    for note, dur in notes:
+        n = int(dur * sample_rate)
+        freq = _NOTE_FREQS.get(note, 0.0)
+        if freq <= 0:
+            out.extend([0.0] * n)
+            continue
+        period = sample_rate / freq
+        # AD-Envelope: kurzer Attack, weicher Release fuer chiptune-Feeling.
+        attack = min(80, n // 8)
+        release = min(220, n // 4)
+        if wave == "square":
+            half = period / 2
+            for i in range(n):
+                v = volume if (i % period) < half else -volume
+                if i < attack:
+                    v *= i / max(1, attack)
+                elif i > n - release:
+                    v *= max(0.0, (n - i) / max(1, release))
+                out.append(v)
+        else:  # triangle
+            for i in range(n):
+                phase = (i % period) / period
+                v = (phase * 4 - 1) if phase < 0.5 else (3 - phase * 4)
+                v *= volume
+                if i < attack:
+                    v *= i / max(1, attack)
+                elif i > n - release:
+                    v *= max(0.0, (n - i) / max(1, release))
+                out.append(v)
+    return out
+
+
+def _generate_chiptune_loop(sample_rate=MUSIC_SAMPLE_RATE):
+    """Baut den Loop einmal als raw PCM-Bytes. 4 Takte C-Dur / F-Dur / G7 — flott
+    und einpraegsam ohne anstrengend zu sein."""
+    import array
+    sr = sample_rate
+    b = 0.21  # Sekunden pro Beat (~140 BPM)
+    h = b / 2  # Achtel
+    # 4-Takt-Lead (Square Wave) ueber C, F, G, C
+    lead = [
+        ("G4", h), ("C5", h), ("E5", h), ("G5", h),
+        ("E5", h), ("C5", h), ("E5", b),
+        ("A4", h), ("D5", h), ("F5", h), ("A5", h),
+        ("F5", h), ("D5", h), ("D5", b),
+        ("A4", h), ("C5", h), ("F5", h), ("A5", h),
+        ("G5", h), ("E5", h), ("C5", b),
+        ("G4", h), ("B4", h), ("D5", h), ("F5", h),
+        ("E5", h), ("D5", h), ("C5", b),
+    ]
+    # Bass (Triangle Wave) — klassische I-ii-IV-V-Progression in C-Dur
+    bass = [
+        ("C3", b), ("G3", b), ("C3", b), ("G3", b),  # C
+        ("D3", b), ("A3", b), ("D3", b), ("A3", b),  # Dm
+        ("F3", b), ("C3", b), ("F3", b), ("C3", b),  # F
+        ("G3", b), ("D3", b), ("G3", b), ("B3", b),  # G7 → resolves
+    ]
+    lead_s = _synth_voice(lead, sr, "square", volume=0.22)
+    bass_s = _synth_voice(bass, sr, "triangle", volume=0.28)
+    n_total = max(len(lead_s), len(bass_s))
+    if len(lead_s) < n_total:
+        lead_s.extend([0.0] * (n_total - len(lead_s)))
+    if len(bass_s) < n_total:
+        bass_s.extend([0.0] * (n_total - len(bass_s)))
+    # Stereo-PCM-Bytes (16-bit signed LE)
+    out = array.array("h")
+    for i in range(n_total):
+        v = lead_s[i] + bass_s[i]
+        # Clipping vermeiden
+        if v > 1.0:
+            v = 1.0
+        elif v < -1.0:
+            v = -1.0
+        s = int(v * 18000)
+        out.append(s)  # left
+        out.append(s)  # right
+    return out.tobytes()
+
+
+_MUSIC_STATE = {"sound": None, "muted": False}
+
+
+def music_init():
+    """Versucht pygame.mixer zu initialisieren und den Loop zu erzeugen. Schluckt
+    Fehler — ohne Sound spielt das Spiel trotzdem."""
+    try:
+        pygame.mixer.init(frequency=MUSIC_SAMPLE_RATE, size=-16, channels=2)
+        info = pygame.mixer.get_init()
+        # Browser/OS kann eine andere Sample-Rate forcieren — Loop dann an die
+        # echte Rate angleichen, damit Tonhoehe stimmt.
+        actual_sr = info[0] if info else MUSIC_SAMPLE_RATE
+        raw = _generate_chiptune_loop(actual_sr)
+        snd = pygame.mixer.Sound(buffer=raw)
+        snd.set_volume(0.35)
+        _MUSIC_STATE["sound"] = snd
+        snd.play(loops=-1)
+    except Exception as exc:
+        print(f"Musik-Init fehlgeschlagen: {exc}")
+        _MUSIC_STATE["sound"] = None
+
+
+def music_toggle_mute():
+    snd = _MUSIC_STATE["sound"]
+    if not snd:
+        return
+    _MUSIC_STATE["muted"] = not _MUSIC_STATE["muted"]
+    snd.set_volume(0.0 if _MUSIC_STATE["muted"] else 0.35)
+
+
+def music_is_muted():
+    return _MUSIC_STATE["muted"]
 
 
 def save_state(state):
@@ -2320,6 +2453,8 @@ async def run_menu(screen, save_data, fonts):
                         return result
                 if event.key in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_a, pygame.K_d) and cursor == 0:
                     cycle_difficulty(save_data)
+                if event.key == pygame.K_m:
+                    music_toggle_mute()
             touch.handle_event(event)
             tap = event_tap_pos(event)
             if tap is not None:
@@ -2422,10 +2557,10 @@ async def run_menu(screen, save_data, fonts):
         if scroll_start + visible < options_count:
             draw_scroll_arrow(screen, W // 2, list_y0 + visible * row_h, "down")
 
-        hint = fonts["small"].render(
-            "Tap oder Pfeiltasten · Enter startet",
-            True, HUD_DIM,
-        )
+        hint_txt = "Tap oder Pfeiltasten · Enter startet · M = Sound"
+        if music_is_muted():
+            hint_txt += " (aus)"
+        hint = fonts["small"].render(hint_txt, True, HUD_DIM)
         screen.blit(hint, (W // 2 - hint.get_width() // 2, H - 26))
         # Versionsnummer unten rechts — wird pro Push hochgezaehlt, damit man
         # im Browser-Cache vs. Live-Build vergleichen kann.
@@ -2507,6 +2642,8 @@ async def run_shop(screen, save_data, fonts):
                     cur = (cur + 1) % len(selectable)
                 if event.key in (pygame.K_RETURN, pygame.K_SPACE):
                     activate_item(items_list[selectable[cur]][1])
+                if event.key == pygame.K_m:
+                    music_toggle_mute()
             touch.handle_event(event)
             tap = event_tap_pos(event)
             if tap is not None:
@@ -2858,6 +2995,8 @@ async def run_race(screen, route, save_data, fonts):
                     player.drink()
                 if event.key == pygame.K_RETURN and state == "finished":
                     return
+                if event.key == pygame.K_m:
+                    music_toggle_mute()
             touch.handle_event(event)
             tap = event_tap_pos(event)
             if tap is not None:
@@ -3107,6 +3246,7 @@ async def main():
     pygame.display.set_caption("Radgame")
     pygame.display.set_mode((W, H), _display_flags())
     fonts = make_fonts()
+    music_init()
     while True:
         save_data = load_save()
         # get_surface() liefert die aktuelle Display-Surface, auch nach Resize.
