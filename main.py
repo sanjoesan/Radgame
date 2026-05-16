@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v19"
+VERSION = "v20"
 
 
 def _detect_touch():
@@ -461,7 +461,7 @@ def music_init(save_data):
     Main-Loop kurz blockt (z. B. waehrend Input-Verarbeitung). Sonst rauscht
     die Musik bei jedem Tasten-/Tap-Event."""
     try:
-        pygame.mixer.init(frequency=MUSIC_SAMPLE_RATE, size=-16, channels=2, buffer=2048)
+        pygame.mixer.init(frequency=MUSIC_SAMPLE_RATE, size=-16, channels=2, buffer=4096)
         pygame.mixer.set_num_channels(16)  # Platz fuer parallele SFX
         info = pygame.mixer.get_init()
         # Browser/OS kann eine andere Sample-Rate forcieren — Loop dann an die
@@ -512,17 +512,19 @@ def music_volume_label(save_data):
 _SFX = {}
 
 
-def _samples_to_sound(samples):
-    """Konvertiert eine Liste von Float-Samples (-1..+1) in eine pygame
-    Stereo-Sound (Mono-Quelle in beide Kanaele dupliziert)."""
+def _samples_to_sound(samples, peak=0.85):
+    """Konvertiert eine Liste von Float-Samples in eine pygame Stereo-Sound.
+    Peak-normalisiert auf `peak` (Default 0.85), damit auch leise erzeugte
+    Sounds nahe an Maximalpegel rauskommen — sonst war der Applaus kaum
+    hoerbar, weil set_volume ja schon kleiner als 1 ist."""
     import array
+    if not samples:
+        return pygame.mixer.Sound(buffer=b"\x00\x00\x00\x00")
+    max_abs = max(abs(v) for v in samples) or 1.0
+    norm = peak / max_abs
     arr = array.array("h")
     for v in samples:
-        if v > 1.0:
-            v = 1.0
-        elif v < -1.0:
-            v = -1.0
-        s = int(v * 18000)
+        s = int(max(-1.0, min(1.0, v * norm)) * 32000)
         arr.append(s)
         arr.append(s)
     return pygame.mixer.Sound(buffer=arr.tobytes())
@@ -608,28 +610,52 @@ def _sfx_init(sr):
         finish.extend(_sfx_chirp(f, f, 0.10, sr, "square", 0.32))
     finish.extend(_sfx_chirp(_NOTE_FREQS["C6"], _NOTE_FREQS["C6"], 0.55, sr, "square", 0.34))
     _SFX["finish"] = _samples_to_sound(finish)
-    # Applaus: viele kurze, scharfe Noise-Knatscher ueberlagert. Jeder
-    # einzelne ist ein 1-2ms-Burst mit exp. Decay (klingt wie ein Klatsch),
-    # ueber 1.0s verteilt klingt's nach Menge.
-    n = int(1.0 * sr)
+    # === Klatschen, TR-808-Style ===
+    # Ein echter Klatscher ist KEIN langes Rauschen — der typische 808/909-
+    # Synth-Klatsch macht 3 schnelle Noise-Bursts à ~4ms im 8-10ms-Abstand
+    # (simuliert Hand-Hohlraum-Resonanz), dann einen kurzen Reverb-Tail.
+    def _make_single_clap():
+        n_total = int(0.07 * sr)  # 70ms gesamt
+        out = [0.0] * n_total
+        tap_n = max(8, int(0.004 * sr))  # 4ms pro Tap
+        decay_const = max(2.0, tap_n / 4.0)
+        # 3 Taps im 8-10ms-Abstand, jeder mit scharfem expon. Decay
+        for off_ms in (0, 9, 18):
+            off = int(off_ms / 1000 * sr)
+            for i in range(tap_n):
+                idx = off + i
+                if idx >= n_total:
+                    break
+                env = math.exp(-i / decay_const)
+                out[idx] += (random.random() * 2 - 1) * 0.85 * env
+        # Reverb-Tail ab 18ms: leises Noise mit langsamerem Decay
+        tail_start = int(0.018 * sr)
+        for i in range(tail_start, n_total):
+            env = math.exp(-(i - tail_start) / (n_total / 3.5))
+            out[i] += (random.random() * 2 - 1) * 0.30 * env
+        return out
+
+    _SFX["clap_one"] = _samples_to_sound(_make_single_clap())
+
+    # Applaus = viele zeitlich versetzte einzelne Klatscher.
+    appl_dur = 0.9
+    n = int(appl_dur * sr)
     appl = [0.0] * n
-    n_claps = max(10, int(1.0 * 32))  # ~32 Klatscher pro Sekunde
+    n_claps = int(appl_dur * 12)  # ~12 Klatscher/Sekunde
+    clap_n = int(0.07 * sr)
     for _ in range(n_claps):
-        pos = random.randint(0, n - 1)
-        clap_n = random.randint(40, 90)
-        amp = random.uniform(0.18, 0.42)
-        for i in range(clap_n):
-            if pos + i >= n:
-                break
-            env = math.exp(-i / 18)  # sehr schneller Decay
-            appl[pos + i] += (random.random() * 2 - 1) * amp * env
-    # Hauptenvelope: Swell rein, abklingen raus
+        clap = _make_single_clap()
+        pos = random.randint(0, n - clap_n)
+        amp = random.uniform(0.55, 1.0)
+        for i, v in enumerate(clap):
+            appl[pos + i] += v * amp
+    # Sanfter Swell rein, langer Abklang raus
     for i in range(n):
         t = i / max(1, n - 1)
-        if t < 0.08:
-            appl[i] *= t / 0.08
-        elif t > 0.75:
-            appl[i] *= max(0.0, (1.0 - t) / 0.25)
+        if t < 0.06:
+            appl[i] *= t / 0.06
+        elif t > 0.7:
+            appl[i] *= max(0.0, (1.0 - t) / 0.3)
     _SFX["applause"] = _samples_to_sound(appl)
     # Wuhuu — zweisilbiger Triangle-Pitch: kurzes "Wu" tief, "huu" hoch und
     # zurueck. Klingt wie ein Fan-Schrei.
@@ -3395,15 +3421,17 @@ async def run_race(screen, route, save_data, fonts):
                     if k.startswith("spec_") or k in ("diablo", "drummer"):
                         near_count += 1
             cheer_t -= dt
-            if cheer_t <= 0 and near_count >= 3:
-                intensity = min(1.5, 0.45 + near_count / 18)
-                if random.random() < 0.22:
+            if cheer_t <= 0 and near_count >= 1:
+                intensity = min(1.6, 0.7 + near_count / 14)
+                if random.random() < 0.18:
                     play_sfx("wuhuu", save_data, scale=intensity)
+                elif near_count <= 3:
+                    # Wenig Zuschauer → einzelner Klatscher
+                    play_sfx("clap_one", save_data, scale=intensity)
                 else:
                     play_sfx("applause", save_data, scale=intensity)
-                # Dichtere Wand → kuerzeres Intervall (min 0.35s).
-                base = max(0.35, 1.6 - near_count / 14)
-                cheer_t = random.uniform(base, base * 1.7)
+                base = max(0.30, 1.4 - near_count / 12)
+                cheer_t = random.uniform(base, base * 1.6)
             elif cheer_t <= 0:
                 cheer_t = 0.4
             # Heli-Schatten driftet quer über den Bildschirm. Außerhalb des
