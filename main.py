@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v27"
+VERSION = "v28"
 
 
 def _detect_touch():
@@ -3220,10 +3220,28 @@ async def run_menu(screen, save_data, fonts):
                 screen.blit(desc, (list_x + 14, y + 34))
             else:
                 r = ROUTES[i - 5]
-                bg = (40, 52, 80) if sel else (28, 32, 48)
+                best = save_data.get("best", {}).get(r["id"])
+                # P1/P2/P3 -> Kachel in Medaillenfarbe; sonst Standard-Blau.
+                medal_bg = None
+                medal_border = None
+                if best == 1:
+                    medal_bg = (110, 88, 40) if sel else (78, 62, 26)
+                    medal_border = (230, 200, 90)
+                elif best == 2:
+                    medal_bg = (95, 100, 110) if sel else (66, 70, 80)
+                    medal_border = (210, 215, 225)
+                elif best == 3:
+                    medal_bg = (110, 72, 44) if sel else (76, 50, 30)
+                    medal_border = (210, 130, 70)
+                if medal_bg is not None:
+                    bg = medal_bg
+                    border = medal_border
+                else:
+                    bg = (40, 52, 80) if sel else (28, 32, 48)
+                    border = BLUE
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
-                    pygame.draw.rect(screen, BLUE, (list_x, y, list_w, row_h - 6), 2, border_radius=10)
+                    pygame.draw.rect(screen, border, (list_x, y, list_w, row_h - 6), 2, border_radius=10)
                 name = fonts["mid"].render(r["name"], True, WHITE)
                 screen.blit(name, (list_x + 14, y + 4))
                 race_short = r["race"].split(" – ")[0].split(" (")[0]
@@ -3239,10 +3257,18 @@ async def run_menu(screen, save_data, fonts):
                 screen.blit(meta, (list_x + 14, y + 34))
                 sx = list_x + list_w - 5 * 16 - 14
                 sy = y + 36
+                # Bei Medaillen-Tile: dunkler Chip hinter den Sternen, damit die
+                # nur-Outline gezeichneten leeren Sterne nicht im Goldton untergehen.
+                if medal_bg is not None:
+                    pad = 3
+                    pygame.draw.rect(
+                        screen, (24, 28, 40),
+                        (sx - pad, sy - pad, 5 * 16 + pad * 2, 14 + pad * 2),
+                        border_radius=5,
+                    )
                 for j in range(5):
                     spr = star_full if j < r["difficulty"] else star_empty
                     screen.blit(spr, (sx + j * 16, sy))
-                best = save_data.get("best", {}).get(r["id"])
                 if best:
                     b = fonts["small"].render(f"Best P{best}", True, YELLOW)
                     screen.blit(b, (list_x + list_w - b.get_width() - 14, y + 10))
