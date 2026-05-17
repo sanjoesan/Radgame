@@ -13,7 +13,7 @@ IS_WEB = sys.platform == "emscripten"
 
 # Wird bei JEDEM Push hochgezaehlt — siehe CLAUDE.md (Versionsnummer-Konvention).
 # Damit man im Browser sieht, ob noch eine alte Version aus dem Cache laeuft.
-VERSION = "v28"
+VERSION = "v29"
 
 
 def _detect_touch():
@@ -185,6 +185,32 @@ DIFFICULTY_PRESETS = {
     "medium": {"label": "Mittel", "opp_speed_mult": 1.00, "drain_mult": 1.00, "obstacle_mult": 1.0},
     "hard":   {"label": "Schwer", "opp_speed_mult": 1.08, "drain_mult": 1.18, "obstacle_mult": 1.3},
 }
+
+# Pokal-Familien: jede „Tour" gruppiert Strecken über das route["race"]-Präfix.
+# Pokal wird freigeschaltet, sobald ALLE Strecken einer Tour als P1 abgeschlossen sind.
+TOURS = [
+    {"id": "tdf",       "name": "Tour de France",  "race_prefix": "Tour de France"},
+    {"id": "giro",      "name": "Giro d'Italia",   "race_prefix": "Giro d'Italia"},
+    {"id": "vuelta",    "name": "Vuelta a España", "race_prefix": "Vuelta"},
+    {"id": "monumente", "name": "Monumente",       "race_prefix": "Monument"},
+    {"id": "klassiker", "name": "Klassiker",       "race_prefix": "Klassiker"},
+]
+
+
+def tour_routes(tour):
+    return [r for r in ROUTES if r["race"].startswith(tour["race_prefix"])]
+
+
+def tour_progress(tour, save_data):
+    routes = tour_routes(tour)
+    best = save_data.get("best", {})
+    won = sum(1 for r in routes if best.get(r["id"]) == 1)
+    return won, len(routes)
+
+
+def tour_unlocked(tour, save_data):
+    won, total = tour_progress(tour, save_data)
+    return total > 0 and won == total
 
 
 def difficulty_preset(save_data):
@@ -2241,6 +2267,194 @@ def make_star_sprite(filled=True, size=14):
     return s
 
 
+def _trophy_palette(kind, locked):
+    if locked:
+        return {
+            "primary": (95, 100, 115), "primary_dark": (60, 65, 78),
+            "accent":  (130, 135, 150), "rim": (150, 155, 170),
+            "base":    (50, 50, 58),   "base_dark": (28, 30, 36),
+            "gem":     (90, 90, 100),  "shine": (170, 175, 188),
+        }
+    palettes = {
+        "tdf": {
+            "primary": (250, 210, 70), "primary_dark": (190, 150, 30),
+            "accent":  (255, 240, 180), "rim": (255, 245, 200),
+            "base":    (90, 60, 30),   "base_dark": (55, 35, 20),
+            "gem":     (220, 50, 60),  "shine": (255, 255, 255),
+        },
+        "giro": {
+            "primary": (230, 100, 170), "primary_dark": (175, 55, 120),
+            "accent":  (255, 200, 230), "rim": (245, 220, 140),
+            "base":    (215, 215, 225), "base_dark": (160, 160, 175),
+            "gem":     (250, 230, 90),  "shine": (255, 255, 255),
+        },
+        "vuelta": {
+            "primary": (215, 55, 55),  "primary_dark": (155, 30, 30),
+            "accent":  (255, 170, 90), "rim": (250, 220, 130),
+            "base":    (70, 45, 30),   "base_dark": (45, 28, 18),
+            "gem":     (250, 230, 90), "shine": (255, 220, 180),
+        },
+        "monumente": {
+            "primary": (240, 200, 70), "primary_dark": (175, 140, 25),
+            "accent":  (255, 235, 160), "rim": (255, 250, 200),
+            "base":    (230, 225, 215), "base_dark": (160, 160, 155),
+            "gem":     (210, 40, 60),  "shine": (255, 255, 255),
+        },
+        "klassiker": {
+            "primary": (180, 180, 195), "primary_dark": (120, 120, 138),
+            "accent":  (225, 225, 235), "rim": (240, 240, 250),
+            "base":    (90, 75, 60),   "base_dark": (55, 45, 35),
+            "gem":     (185, 110, 60), "shine": (255, 255, 255),
+        },
+    }
+    return palettes[kind]
+
+
+def make_trophy_sprite(kind, locked=False, size=72):
+    """Pixel-Art Pokal pro Tour-Familie. kind: tdf|giro|vuelta|monumente|klassiker.
+
+    Jede Tour hat ein eigenes Design (Form, Verzierung). Locked = gleiches
+    Layout, aber graue Palette."""
+    w = size
+    h = int(size * 1.15)
+    s = pygame.Surface((w, h), pygame.SRCALPHA)
+    p = _trophy_palette(kind, locked)
+    cx = w // 2
+
+    # Gemeinsamer Sockel + kurzer Stiel — verbindet alle Pokale optisch.
+    base_h = 10
+    base_y = h - base_h
+    pygame.draw.rect(s, p["base"], (cx - 22, base_y, 44, base_h), border_radius=2)
+    pygame.draw.rect(s, p["base_dark"], (cx - 22, base_y + base_h - 3, 44, 3), border_radius=2)
+    pygame.draw.rect(s, p["base"], (cx - 14, base_y - 4, 28, 4))
+    pygame.draw.rect(s, p["base_dark"], (cx - 14, base_y - 4, 28, 1))
+    stem_y = base_y - 12
+    pygame.draw.rect(s, p["primary_dark"], (cx - 5, stem_y, 10, 12))
+    pygame.draw.rect(s, p["primary"], (cx - 5, stem_y, 4, 12))
+
+    if kind == "tdf":
+        # Maillot-Jaune-Pokal: klassische Schale, zwei Ringhenkel, Stern.
+        cup_y = 10
+        cup_h = stem_y - cup_y
+        pygame.draw.rect(s, p["primary"], (cx - 18, cup_y + 4, 36, cup_h - 4), border_radius=6)
+        pygame.draw.rect(s, p["primary_dark"], (cx - 18, cup_y + cup_h - 8, 36, 6), border_radius=4)
+        pygame.draw.rect(s, p["rim"], (cx - 22, cup_y, 44, 6), border_radius=3)
+        pygame.draw.rect(s, p["primary_dark"], (cx - 22, cup_y + 4, 44, 2))
+        for sign in (-1, 1):
+            hx = cx + sign * 22
+            pygame.draw.circle(s, p["primary_dark"], (hx, cup_y + cup_h // 2), 8, 2)
+        sx, sy = cx, cup_y + cup_h // 2 + 2
+        pts = []
+        for i in range(10):
+            ang = -math.pi / 2 + i * math.pi / 5
+            r = 7 if i % 2 == 0 else 3
+            pts.append((sx + math.cos(ang) * r, sy + math.sin(ang) * r))
+        pygame.draw.polygon(s, p["gem"], pts)
+        pygame.draw.rect(s, p["shine"], (cx - 14, cup_y + 8, 2, cup_h - 16))
+
+    elif kind == "giro":
+        # Trofeo Senza Fine: schlanke spiralige Säule mit Goldring + Spitze.
+        col_y = 8
+        col_h = stem_y - col_y
+        for i in range(col_h):
+            t = i / max(1, col_h - 1)
+            half_w = max(4, int(14 - t * 5))
+            col = p["primary"] if (i // 3) % 2 == 0 else p["primary_dark"]
+            pygame.draw.line(s, col, (cx - half_w, col_y + i), (cx + half_w, col_y + i))
+        pygame.draw.rect(s, p["rim"], (cx - 16, col_y, 32, 5), border_radius=3)
+        pygame.draw.rect(s, p["primary_dark"], (cx - 16, col_y + 3, 32, 2))
+        # Diagonale Spiralband-Linien
+        for k in range(0, col_h - 4, 6):
+            off = (k - col_h // 3)
+            pygame.draw.line(
+                s, p["accent"],
+                (cx - 10 + off // 4, col_y + k),
+                (cx + 10 - off // 4, col_y + k + 5),
+                1,
+            )
+        pygame.draw.polygon(
+            s, p["accent"],
+            [(cx, col_y - 5), (cx - 5, col_y + 2), (cx + 5, col_y + 2)],
+        )
+        pygame.draw.rect(s, p["shine"], (cx - 10, col_y + 8, 1, col_h - 14))
+
+    elif kind == "vuelta":
+        # Roter Kelch mit Sonnenstrahlen oben.
+        cup_y = 14
+        cup_h = stem_y - cup_y
+        pygame.draw.ellipse(s, p["primary"], (cx - 22, cup_y, 44, cup_h))
+        pygame.draw.ellipse(s, p["primary_dark"], (cx - 22, cup_y + cup_h - 10, 44, 10))
+        pygame.draw.ellipse(s, p["rim"], (cx - 22, cup_y, 44, 8))
+        pygame.draw.ellipse(s, p["primary_dark"], (cx - 22, cup_y + 4, 44, 4))
+        # Sonnenstrahlen
+        for ang_deg in range(-80, 81, 20):
+            ang = math.radians(ang_deg - 90)
+            x1 = cx + int(math.cos(ang) * 5)
+            y1 = cup_y + int(math.sin(ang) * 5)
+            x2 = cx + int(math.cos(ang) * 13)
+            y2 = cup_y + int(math.sin(ang) * 13)
+            pygame.draw.line(s, p["gem"], (x1, y1), (x2, y2), 2)
+        pygame.draw.circle(s, p["gem"], (cx, cup_y + 1), 4)
+        pygame.draw.circle(s, p["accent"], (cx, cup_y + 1), 2)
+        pygame.draw.line(s, p["shine"], (cx - 14, cup_y + 10), (cx - 16, cup_y + cup_h - 16), 2)
+
+    elif kind == "monumente":
+        # Hohe Goldschale (Tulpenform) mit 5 roten Edelsteinen + Krone.
+        cup_y = 8
+        cup_h = stem_y - cup_y
+        for i in range(cup_h):
+            t = i / max(1, cup_h - 1)
+            half_w = max(4, int(18 - t * 12 + math.sin(t * math.pi) * 3))
+            col = p["primary"] if i % 3 != 2 else p["primary_dark"]
+            pygame.draw.line(s, col, (cx - half_w, cup_y + i), (cx + half_w, cup_y + i))
+        pygame.draw.rect(s, p["rim"], (cx - 19, cup_y, 38, 5), border_radius=2)
+        pygame.draw.rect(s, p["primary_dark"], (cx - 19, cup_y + 3, 38, 2))
+        # 5 Edelsteine als Reihe = 5 Monumente
+        for k in range(5):
+            gx = cx - 12 + k * 6
+            gy = cup_y + cup_h // 2
+            pygame.draw.rect(s, p["gem"], (gx - 1, gy - 1, 3, 4))
+            pygame.draw.rect(s, p["shine"], (gx, gy - 1, 1, 1))
+        # Kleine Krone als Krönung oben drauf
+        pygame.draw.polygon(
+            s, p["accent"],
+            [(cx - 7, cup_y - 2), (cx - 5, cup_y - 7),
+             (cx - 2, cup_y - 3), (cx, cup_y - 8),
+             (cx + 2, cup_y - 3), (cx + 5, cup_y - 7),
+             (cx + 7, cup_y - 2)],
+        )
+        pygame.draw.line(s, p["shine"], (cx - 12, cup_y + 10), (cx - 15, cup_y + cup_h - 12), 2)
+
+    else:  # klassiker
+        # Pokal aus Kopfsteinpflaster — Trapezform mit Pavé-Muster + Pavé-Stein oben.
+        cup_y = 10
+        cup_h = stem_y - cup_y
+        pygame.draw.polygon(
+            s, p["primary_dark"],
+            [(cx - 22, cup_y), (cx + 22, cup_y),
+             (cx + 16, cup_y + cup_h), (cx - 16, cup_y + cup_h)],
+        )
+        # Kopfsteinmuster — versetzte Reihen
+        for row in range(0, cup_h - 3, 6):
+            shrink = row // 6
+            row_x0 = cx - 20 + shrink
+            row_x1 = cx + 20 - shrink
+            offset = 3 if (row // 6) % 2 else 0
+            x = row_x0 + offset
+            while x + 5 <= row_x1:
+                cy_pos = cup_y + 2 + row
+                pygame.draw.rect(s, p["primary"], (x, cy_pos, 5, 4), border_radius=1)
+                pygame.draw.rect(s, p["primary_dark"], (x, cy_pos + 3, 5, 1))
+                x += 7
+        pygame.draw.rect(s, p["rim"], (cx - 24, cup_y - 3, 48, 5), border_radius=2)
+        # Pavé-Stein als Trophäen-Symbol oben
+        pygame.draw.rect(s, p["gem"], (cx - 7, cup_y - 11, 14, 9), border_radius=2)
+        pygame.draw.rect(s, p["accent"], (cx - 7, cup_y - 11, 14, 2))
+        pygame.draw.rect(s, p["base_dark"], (cx - 7, cup_y - 4, 14, 1))
+
+    return s
+
+
 def make_goodie_sprite(kind):
     s = pygame.Surface((22, 24), pygame.SRCALPHA)
     if kind == "bottle":
@@ -3050,26 +3264,28 @@ async def run_menu(screen, save_data, fonts):
     clock = pygame.time.Clock()
     cursor = 0
     row_h = 64
-    # Layout: 0 = Musik, 1 = Sounds, 2 = Lautstaerke, 3 = Schwierigkeit,
-    # 4 = Shop, 5..N+4 = Routen.
-    options_count = len(ROUTES) + 5
+    # Layout: 0 = Pokale, 1 = Musik, 2 = Sounds, 3 = Lautstaerke,
+    # 4 = Schwierigkeit, 5 = Shop, 6..N+5 = Routen.
+    options_count = len(ROUTES) + 6
 
     def activate(idx):
         if idx == 0:
+            return ("achievements", None)
+        if idx == 1:
             music_toggle_mute(save_data)
             return None
-        if idx == 1:
+        if idx == 2:
             sfx_toggle_mute(save_data)
             return None
-        if idx == 2:
+        if idx == 3:
             music_cycle_volume(save_data)
             return None
-        if idx == 3:
+        if idx == 4:
             cycle_difficulty(save_data)
             return None
-        if idx == 4:
+        if idx == 5:
             return ("shop", None)
-        return ("race", ROUTES[idx - 5])
+        return ("race", ROUTES[idx - 6])
 
     def build_layout():
         list_x = 20
@@ -3111,13 +3327,13 @@ async def run_menu(screen, save_data, fonts):
                     if result is not None:
                         return result
                 if event.key in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_a, pygame.K_d):
-                    if cursor == 0:
+                    if cursor == 1:
                         music_toggle_mute(save_data)
-                    elif cursor == 1:
-                        sfx_toggle_mute(save_data)
                     elif cursor == 2:
-                        music_cycle_volume(save_data)
+                        sfx_toggle_mute(save_data)
                     elif cursor == 3:
+                        music_cycle_volume(save_data)
+                    elif cursor == 4:
                         cycle_difficulty(save_data)
                 if event.key == pygame.K_m:
                     music_toggle_mute(save_data)
@@ -3170,6 +3386,19 @@ async def run_menu(screen, save_data, fonts):
             sel = (i == cursor)
             row_rects.append((i, pygame.Rect(list_x, y, list_w, row_h - 6)))
             if i == 0:
+                bg = (55, 50, 30) if sel else (35, 32, 22)
+                pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
+                if sel:
+                    pygame.draw.rect(screen, YELLOW, (list_x, y, list_w, row_h - 6), 2, border_radius=10)
+                won_tours = sum(1 for t in TOURS if tour_unlocked(t, save_data))
+                name = fonts["mid"].render("POKALE — Achievements", True, YELLOW)
+                screen.blit(name, (list_x + 14, y + 4))
+                desc = fonts["small"].render(
+                    f"{won_tours} / {len(TOURS)} Tour-Pokale gewonnen",
+                    True, HUD_DIM,
+                )
+                screen.blit(desc, (list_x + 14, y + 34))
+            elif i == 1:
                 bg = (45, 55, 60) if sel else (28, 36, 42)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -3179,7 +3408,7 @@ async def run_menu(screen, save_data, fonts):
                 screen.blit(name, (list_x + 14, y + 4))
                 desc = fonts["small"].render("Tap / Enter / M: an- und ausschalten", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
-            elif i == 1:
+            elif i == 2:
                 bg = (60, 50, 35) if sel else (38, 30, 22)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -3189,7 +3418,7 @@ async def run_menu(screen, save_data, fonts):
                 screen.blit(name, (list_x + 14, y + 4))
                 desc = fonts["small"].render("Pickup, Crash, Trink, Konfetti, Jubel", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
-            elif i == 2:
+            elif i == 3:
                 bg = (55, 50, 65) if sel else (33, 30, 42)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -3198,7 +3427,7 @@ async def run_menu(screen, save_data, fonts):
                 screen.blit(name, (list_x + 14, y + 4))
                 desc = fonts["small"].render("Tap / Enter: durchschalten (Leise · Mittel · Laut)", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
-            elif i == 3:
+            elif i == 4:
                 bg = (50, 50, 70) if sel else (30, 32, 46)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -3209,7 +3438,7 @@ async def run_menu(screen, save_data, fonts):
                 screen.blit(name, (list_x + 14, y + 4))
                 desc = fonts["small"].render("Tap / Enter: wechseln (Leicht · Mittel · Schwer)", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
-            elif i == 4:
+            elif i == 5:
                 bg = (60, 50, 30) if sel else (40, 35, 25)
                 pygame.draw.rect(screen, bg, (list_x, y, list_w, row_h - 6), border_radius=10)
                 if sel:
@@ -3219,7 +3448,7 @@ async def run_menu(screen, save_data, fonts):
                 desc = fonts["small"].render("Punkte ausgeben, Rad aufmotzen", True, HUD_DIM)
                 screen.blit(desc, (list_x + 14, y + 34))
             else:
-                r = ROUTES[i - 5]
+                r = ROUTES[i - 6]
                 best = save_data.get("best", {}).get(r["id"])
                 # P1/P2/P3 -> Kachel in Medaillenfarbe; sonst Standard-Blau.
                 medal_bg = None
@@ -3470,6 +3699,107 @@ async def run_shop(screen, save_data, fonts):
             True, HUD_DIM,
         )
         screen.blit(hint, (W // 2 - hint.get_width() // 2, H - 26))
+
+        touch.draw(screen, fonts["mid"])
+
+        pygame.display.flip()
+        await asyncio.sleep(0)
+
+
+async def run_achievements(screen, save_data, fonts):
+    clock = pygame.time.Clock()
+    # Pokale einmalig vorab rendern (color + locked); spart Arbeit im Loop.
+    trophies = {
+        t["id"]: (
+            make_trophy_sprite(t["id"], locked=False),
+            make_trophy_sprite(t["id"], locked=True),
+        )
+        for t in TOURS
+    }
+
+    def build_layout():
+        buttons = [
+            {"key": "esc", "rect": pygame.Rect(W - 90, 10, 80, 40), "label": "Menü"},
+        ]
+        return TouchPad(buttons)
+
+    touch = build_layout()
+    while True:
+        clock.tick(FPS)
+        screen, resized = maybe_resize(screen, fonts)
+        if resized:
+            touch = build_layout()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+            if event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE, pygame.K_BACKSPACE):
+                    return
+            touch.handle_event(event)
+            tap = event_tap_pos(event)
+            if tap is not None and touch.key_at(tap) == "esc":
+                return
+
+        screen.fill((22, 26, 40))
+        title = fonts["huge"].render("POKALE", True, YELLOW)
+        screen.blit(title, (W // 2 - title.get_width() // 2, 20))
+
+        won_total = sum(1 for t in TOURS if tour_unlocked(t, save_data))
+        sub = fonts["small"].render(
+            f"{won_total} / {len(TOURS)} Pokale freigeschaltet · "
+            "alle Strecken einer Tour auf P1 = Pokal",
+            True, HUD_DIM,
+        )
+        screen.blit(sub, (W // 2 - sub.get_width() // 2, 80))
+
+        row_h = 100
+        list_y0 = 130
+        row_w = min(600, W - 40)
+        row_x = (W - row_w) // 2
+        for i, tour in enumerate(TOURS):
+            y = list_y0 + i * row_h
+            unlocked = tour_unlocked(tour, save_data)
+            won, total = tour_progress(tour, save_data)
+
+            bg = (35, 50, 35) if unlocked else (28, 30, 42)
+            border = GREEN if unlocked else (60, 65, 80)
+            pygame.draw.rect(screen, bg, (row_x, y, row_w, row_h - 12), border_radius=10)
+            pygame.draw.rect(screen, border, (row_x, y, row_w, row_h - 12), 2, border_radius=10)
+
+            spr_color, spr_locked = trophies[tour["id"]]
+            spr = spr_color if unlocked else spr_locked
+            screen.blit(spr, (row_x + 14, y + (row_h - 12 - spr.get_height()) // 2))
+
+            text_x = row_x + 14 + spr.get_width() + 14
+            name_col = WHITE if unlocked else HUD_DIM
+            name = fonts["mid"].render(tour["name"], True, name_col)
+            screen.blit(name, (text_x, y + 14))
+
+            if unlocked:
+                status = f"FREIGESCHALTET · {total}/{total} P1"
+                stat_c = YELLOW
+            else:
+                status = f"{won} / {total} Strecken auf P1"
+                stat_c = HUD_DIM
+            st = fonts["small"].render(status, True, stat_c)
+            screen.blit(st, (text_x, y + 46))
+
+            # Mini-Fortschrittsbalken
+            bar_w = min(220, row_w - (text_x - row_x) - 20)
+            bar_y = y + 70
+            pygame.draw.rect(screen, (20, 22, 30), (text_x, bar_y, bar_w, 6), border_radius=3)
+            pct = won / total if total else 0
+            fill_col = YELLOW if unlocked else BLUE
+            pygame.draw.rect(screen, fill_col, (text_x, bar_y, int(bar_w * pct), 6), border_radius=3)
+
+        hint = fonts["small"].render(
+            "Esc · Enter · Tap auf Menü zurück",
+            True, HUD_DIM,
+        )
+        screen.blit(hint, (W // 2 - hint.get_width() // 2, H - 26))
+        ver = fonts["small"].render(VERSION, True, (90, 100, 120))
+        screen.blit(ver, (W - ver.get_width() - 8, H - 18))
 
         touch.draw(screen, fonts["mid"])
 
@@ -4023,6 +4353,8 @@ async def main():
         screen = pygame.display.get_surface()
         if kind == "shop":
             await run_shop(screen, save_data, fonts)
+        elif kind == "achievements":
+            await run_achievements(screen, save_data, fonts)
         elif kind == "race":
             await run_race(screen, payload, save_data, fonts)
     pygame.quit()
